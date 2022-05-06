@@ -38,6 +38,8 @@ public:
     void terminate();
 
 protected:
+    std::uint32_t m_poolSize;
+    std::uint32_t m_maxPoolSize;
     PoolQueue m_taskQueue;
 };
 
