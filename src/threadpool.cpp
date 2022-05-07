@@ -54,6 +54,53 @@ int worker(threadpool::PoolQueue* queue, std::string name)
     return 1;
 }
 
+template <class Rep, class Period>
+int seasonalWorker(threadpool::PoolQueue* queue,
+                   const std::chrono::duration<Rep, Period>& aliveTime, std::string name)
+{
+    std::string workerName = name;
+    std::shared_ptr<threadpool::IRunnable> backElm = nullptr;
+    std::cout << workerName << "seasonal has been created" << std::endl;
+
+    do
+    {
+        {
+            std::unique_lock lk{_tpMtQueue};
+            std::cout << workerName << "seasonal waitting" << std::endl;
+            if (!_tpCV.wait_for(lk, aliveTime,
+                                [&]()
+                                {
+                                    return !_tpWaitForSignalStart.load(std::memory_order_relaxed) &&
+                                           (_tpTerminal.load(std::memory_order_relaxed) ||
+                                            !queue->empty());
+                                }))
+            {
+                std::cout << workerName << "seasonal is terminal" << std::endl;
+                break;
+            }
+
+            std::cout << workerName << " seasonal wait done" << std::endl;
+            // get back element
+            backElm = queue->front();
+            queue->pop();
+
+            lk.unlock();
+        }
+
+        // do somethings
+        {
+            std::string t = ((RunnableExample*)(backElm.get()))->m_name;
+            std::cout << workerName << "seasonal do " << t << std::endl;
+        }
+
+        if (backElm) backElm->run();
+        backElm = nullptr;
+
+    } while (true);
+
+    return 1;
+}
+
 threadpool::PoolQueue::PoolQueue() {}
 
 threadpool::ThreadPool::ThreadPool()
