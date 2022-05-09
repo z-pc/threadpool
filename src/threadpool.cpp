@@ -3,6 +3,8 @@
 #include <iostream>
 #include <sstream>
 
+using namespace std::chrono_literals;
+
 int threadpool::worker(threadpool::IThreadPool* pool, threadpool::PoolQueue* queue,
                        std::string name)
 {
@@ -63,9 +65,8 @@ int threadpool::worker(threadpool::IThreadPool* pool, threadpool::PoolQueue* que
     return 1;
 }
 
-template <class Rep, class Period>
-int seasonalWorker(threadpool::PoolQueue* queue,
-                   const std::chrono::duration<Rep, Period>& aliveTime, std::string name)
+int threadpool::seasonalWorker(threadpool::IThreadPool* pool, threadpool::PoolQueue* queue,
+                               const std::chrono::nanoseconds& aliveTime, std::string name)
 {
     std::string workerName = name;
     std::shared_ptr<threadpool::IRunnable> backElm = nullptr;
@@ -74,15 +75,16 @@ int seasonalWorker(threadpool::PoolQueue* queue,
     do
     {
         {
-            std::unique_lock lk{_tpMtQueue};
+            std::unique_lock lk{pool->_tpMtQueue};
             std::cout << workerName << "seasonal waitting" << std::endl;
-            if (!_tpCV.wait_for(lk, aliveTime,
-                                [&]()
-                                {
-                                    return !_tpWaitForSignalStart.load(std::memory_order_relaxed) &&
-                                           (_tpTerminal.load(std::memory_order_relaxed) ||
-                                            !queue->empty());
-                                }))
+            if (!pool->_tpCV.wait_for(
+                    lk, aliveTime,
+                    [&]()
+                    {
+                        return !pool->_tpWaitForSignalStart.load(std::memory_order_relaxed) &&
+                               (pool->_tpTerminal.load(std::memory_order_relaxed) ||
+                                !queue->empty());
+                    }))
             {
                 std::cout << workerName << "seasonal is terminal" << std::endl;
                 break;
@@ -112,20 +114,20 @@ int seasonalWorker(threadpool::PoolQueue* queue,
 
 threadpool::PoolQueue::PoolQueue() {}
 
-threadpool::ThreadPool::ThreadPool() { m_poolSize = 2; }
-
-threadpool::ThreadPool::ThreadPool(std::uint32_t poolSize, bool waitForSignalStart /*= false*/)
-    : ThreadPool(poolSize, m_taskQueue, waitForSignalStart)
-{
-}
-
-threadpool::ThreadPool::ThreadPool(std::uint32_t poolSize, PoolQueue& queue,
+threadpool::ThreadPool::ThreadPool(PoolQueue& queue,
+                                   std::uint32_t poolSize /*= THREAD_POOl_DEFAULT_POOL_SIZE*/,
                                    bool waitForSignalStart /*= false*/)
 {
     m_poolSize = poolSize;
     m_taskQueue.swap(queue);
     _tpWaitForSignalStart.store(waitForSignalStart);
     createThreads(m_poolSize);
+}
+
+threadpool::ThreadPool::ThreadPool(std::uint32_t poolSize /*= THREAD_POOl_DEFAULT_POOL_SIZE*/,
+                                   bool waitForSignalStart /*= false*/)
+    : ThreadPool(m_taskQueue, poolSize, waitForSignalStart)
+{
 }
 
 threadpool::ThreadPool::~ThreadPool() { terminate(); }
@@ -168,13 +170,22 @@ void threadpool::ThreadPool::createThreads(std::uint32_t count)
     }
 }
 
-void threadpool::ThreadPoolDynamic::createThreads(std::uint32_t count)
+threadpool::ThreadPoolDynamic::ThreadPoolDynamic(
+    PoolQueue& queue, std::uint32_t poolSize /*= THREAD_POOl_DEFAULT_POOL_SIZE*/,
+    std::uint32_t poolMaxSize /*= std::thread::hardware_concurrency()*/,
+    const std::chrono::nanoseconds& aliveTime /*= 60s*/, bool waitForSignalStart /*= false*/)
 {
-    for (std::uint32_t i = 0; i < count; i++)
-    {
-        std::stringstream sstr;
-        sstr << "#wddd" << i << "#";
-        std::string name = sstr.str();
-        m_threads.push_back(std::make_unique<std::thread>(worker, this, &m_taskQueue, name));
-    }
+    m_poolSize = poolSize;
+    m_poolMaxSize = poolMaxSize;
+    m_aliveTime = aliveTime;
+    m_taskQueue.swap(queue);
+    _tpWaitForSignalStart.store(waitForSignalStart);
+}
+
+threadpool::ThreadPoolDynamic::ThreadPoolDynamic(
+    std::uint32_t poolSize /*= THREAD_POOl_DEFAULT_POOL_SIZE*/,
+    std::uint32_t poolMaxSize /*= std::thread::hardware_concurrency()*/,
+    const std::chrono::nanoseconds& aliveTime /*= 60s*/, bool waitForSignalStart /*= false*/)
+    : ThreadPoolDynamic(m_taskQueue, poolSize, poolMaxSize, aliveTime, waitForSignalStart)
+{
 }
