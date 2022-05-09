@@ -1,38 +1,46 @@
 #include "threadpool.h"
 #include <atomic>
 #include <iostream>
+#include <sstream>
 
-std::mutex _tpMtQueue;
-std::condition_variable _tpCV;
-std::atomic_bool _tpQueueReady = false;
-std::atomic_bool _tpTerminal = false;
-std::atomic_bool _tpWaitForSignalStart = false;
-
-int worker(threadpool::PoolQueue* queue, std::string name)
+int threadpool::worker(threadpool::IThreadPool* pool, threadpool::PoolQueue* queue,
+                       std::string name)
 {
     std::string workerName = name;
     std::shared_ptr<threadpool::IRunnable> backElm = nullptr;
-    std::cout << workerName << " has been created" << std::endl;
+    {
+        const std::lock_guard<std::mutex> lk(pool->_tpMtCoutStream);
+        std::cout << workerName << " has been created" << std::endl;
+    }
 
     do
     {
         {
-            std::unique_lock lk{_tpMtQueue};
-            std::cout << workerName << " waitting" << std::endl;
-            _tpCV.wait(lk,
-                       [&]()
-                       {
-                           return !_tpWaitForSignalStart.load(std::memory_order_relaxed) &&
-                                  (_tpTerminal.load(std::memory_order_relaxed) || !queue->empty());
-                       });
-
-            if (_tpTerminal.load(std::memory_order_relaxed))
+            std::unique_lock lk{pool->_tpMtQueue};
             {
-                std::cout << workerName << "is terminal" << std::endl;
+                const std::lock_guard<std::mutex> lk(pool->_tpMtCoutStream);
+                std::cout << workerName << " waitting" << std::endl;
+            }
+            pool->_tpCV.wait(
+                lk,
+                [&]()
+                {
+                    return !pool->_tpWaitForSignalStart.load(std::memory_order_relaxed) &&
+                           (pool->_tpTerminal.load(std::memory_order_relaxed) || !queue->empty());
+                });
+
+            if (pool->_tpTerminal.load(std::memory_order_relaxed))
+            {
+                {
+                    const std::lock_guard<std::mutex> lk(pool->_tpMtCoutStream);
+                    std::cout << workerName << "is terminal" << std::endl;
+                }
                 break;
             }
-
-            std::cout << workerName << " wait done" << std::endl;
+            {
+                const std::lock_guard<std::mutex> lk(pool->_tpMtCoutStream);
+                std::cout << workerName << " wait done" << std::endl;
+            }
             // get back element
             backElm = queue->front();
             queue->pop();
@@ -42,6 +50,7 @@ int worker(threadpool::PoolQueue* queue, std::string name)
 
         // do somethings
         {
+            const std::lock_guard<std::mutex> lk(pool->_tpMtCoutStream);
             std::string t = ((RunnableExample*)(backElm.get()))->m_name;
             std::cout << workerName << " do " << t << std::endl;
         }
@@ -103,11 +112,23 @@ int seasonalWorker(threadpool::PoolQueue* queue,
 
 threadpool::PoolQueue::PoolQueue() {}
 
-threadpool::ThreadPool::ThreadPool()
+threadpool::ThreadPool::ThreadPool() { m_poolSize = 2; }
+
+threadpool::ThreadPool::ThreadPool(std::uint32_t poolSize, bool waitForSignalStart /*= false*/)
+    : ThreadPool(poolSize, m_taskQueue, waitForSignalStart)
 {
-    m_poolSize = 0;
-    m_maxPoolSize = std::hardware_constructive_interference_size;
 }
+
+threadpool::ThreadPool::ThreadPool(std::uint32_t poolSize, PoolQueue& queue,
+                                   bool waitForSignalStart /*= false*/)
+{
+    m_poolSize = poolSize;
+    m_taskQueue.swap(queue);
+    _tpWaitForSignalStart.store(waitForSignalStart);
+    createThreads(m_poolSize);
+}
+
+threadpool::ThreadPool::~ThreadPool() { terminate(); }
 
 void threadpool::ThreadPool::execute(std::shared_ptr<IRunnable> runnable)
 {
@@ -136,28 +157,24 @@ void threadpool::ThreadPool::terminate()
     _tpCV.notify_all();
 }
 
-threadpool::ThreadPool::ThreadPool(std::uint32_t poolSize, std::uint32_t maxPoolSize,
-                                   PoolQueue& queue, std::uint64_t keepAliveTime,
-                                   bool waitForSignalStart)
-{
-    m_poolSize = poolSize;
-    m_maxPoolSize = maxPoolSize;
-    m_taskQueue.swap(queue);
-    _tpWaitForSignalStart.store(waitForSignalStart);
-
-    using namespace std::chrono_literals;
-
-    m_threads.push_back(std::make_unique<std::thread>(worker, &m_taskQueue, "#w1#"));
-    std::this_thread::sleep_for(200ms);
-    m_threads.push_back(std::make_unique<std::thread>(worker, &m_taskQueue, "#w2#"));
-    std::this_thread::sleep_for(200ms);
-    m_threads.push_back(std::make_unique<std::thread>(worker, &m_taskQueue, "#w3#"));
-    std::this_thread::sleep_for(200ms);
-    m_threads.push_back(std::make_unique<std::thread>(worker, &m_taskQueue, "#w4#"));
-}
-
 void threadpool::ThreadPool::createThreads(std::uint32_t count)
 {
     for (std::uint32_t i = 0; i < count; i++)
-        m_threads.push_back(std::make_unique<std::thread>());
+    {
+        std::stringstream sstr;
+        sstr << "#w " << i << " #";
+        std::string name = sstr.str();
+        m_threads.push_back(std::make_unique<std::thread>(worker, this, &m_taskQueue, name));
+    }
+}
+
+void threadpool::ThreadPoolDynamic::createThreads(std::uint32_t count)
+{
+    for (std::uint32_t i = 0; i < count; i++)
+    {
+        std::stringstream sstr;
+        sstr << "#wddd" << i << "#";
+        std::string name = sstr.str();
+        m_threads.push_back(std::make_unique<std::thread>(worker, this, &m_taskQueue, name));
+    }
 }

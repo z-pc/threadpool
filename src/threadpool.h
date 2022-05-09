@@ -26,16 +26,43 @@ public:
     virtual ~PoolQueue(){};
 };
 
-class ThreadPool : public boost::noncopyable_::noncopyable
+class IThreadPool;
+int worker(threadpool::IThreadPool* pool, threadpool::PoolQueue* queue, std::string name);
+
+class IThreadPool : public boost::noncopyable_::noncopyable
+{
+public:
+    IThreadPool() { m_poolSize = 0; };
+    virtual ~IThreadPool(){};
+
+    virtual void execute(std::shared_ptr<IRunnable> runnable) = 0;
+    virtual void start() = 0;
+    virtual void wait() = 0;
+    virtual void terminate() = 0;
+
+    friend int worker(threadpool::IThreadPool* pool, threadpool::PoolQueue* queue, std::string name);
+
+protected:
+    std::uint32_t m_poolSize;
+    PoolQueue m_taskQueue;
+    std::vector<std::unique_ptr<std::thread>> m_threads;
+
+    std::mutex _tpMtQueue;
+    std::mutex _tpMtCoutStream;
+    std::condition_variable _tpCV;
+    std::atomic_bool _tpQueueReady = false;
+    std::atomic_bool _tpTerminal = false;
+    std::atomic_bool _tpWaitForSignalStart = false;
+};
+
+class ThreadPool : public IThreadPool
 {
 
 public:
-    ThreadPool(std::uint32_t poolSize, std::uint32_t maxPoolSize, PoolQueue& queue,
-               std::uint64_t keepAliveTime, bool waitForSignalStart);
+    ThreadPool(std::uint32_t poolSize, bool waitForSignalStart = false);
+    ThreadPool(std::uint32_t poolSize, PoolQueue& queue, bool waitForSignalStart = false);
+    virtual ~ThreadPool();
 
-    virtual ~ThreadPool(){};
-
-    template <class Runnable_> void execute(const Runnable_& runnable);
     void execute(std::shared_ptr<IRunnable> runnable);
     void start();
     void wait();
@@ -43,19 +70,39 @@ public:
 
 protected:
     ThreadPool();
-    void createThreads(std::uint32_t count);
-
-    std::uint32_t m_poolSize;
-    std::uint32_t m_maxPoolSize;
-    PoolQueue m_taskQueue;
-
-    std::vector<std::unique_ptr<std::thread>> m_threads;
+    virtual void createThreads(std::uint32_t count);
 };
 
-template <class Runnable_> void threadpool::ThreadPool::execute(const Runnable_& runnable)
+class ThreadPoolDynamic : public ThreadPool
 {
-    std::shared_ptr<IRunnable> r = std::make_shared<Runnable_>(runnable);
-    execute(r);
+public:
+    template <class Rep, class Period>
+    ThreadPoolDynamic(std::uint32_t poolSize, std::uint32_t poolMaxSize,
+                      const std::chrono::duration<Rep, Period>& aliveTime, PoolQueue& queue,
+                      bool waitForSignalStart = false);
+    ~ThreadPoolDynamic(){};
+
+protected:
+    virtual void createThreads(std::uint32_t count) override;
+
+    std::uint32_t m_poolMaxSize;
+    std::chrono::nanoseconds m_aliveTime;
+};
+
+template <class Rep, class Period>
+threadpool::ThreadPoolDynamic::ThreadPoolDynamic(
+    std::uint32_t poolSize, std::uint32_t poolMaxSize,
+    const std::chrono::duration<Rep, Period>& aliveTime, PoolQueue& queue,
+    bool waitForSignalStart /*= false*/)
+//: ThreadPool(poolSize, queue, waitForSignalStart)
+{
+    extern std::atomic_bool _tpWaitForSignalStart;
+    m_poolSize = poolSize;
+    m_taskQueue.swap(queue);
+    _tpWaitForSignalStart.store(waitForSignalStart);
+    createThreads(m_poolSize);
+    m_aliveTime = aliveTime;
+    m_poolMaxSize = poolMaxSize;
 }
 
 } // namespace threadpool
