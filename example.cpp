@@ -7,6 +7,31 @@
 using namespace std;
 using namespace threadpool;
 
+class RunnableExample : public threadpool::IRunnable
+{
+public:
+    RunnableExample(std::string name) { m_name = name; };
+    ~RunnableExample(){};
+
+    virtual bool run() override
+    {
+        using namespace std::chrono_literals;
+        int loop = rand() % 10 + 1;
+
+        for (int i = 0; i < loop; i++)
+        {
+            {
+                std::cout << m_name << " running " << i << std::endl;
+            }
+        }
+
+        return true;
+    }
+
+    std::string m_name;
+};
+
+
 int main(void)
 {
     try
@@ -20,12 +45,9 @@ int main(void)
         queue.push(std::make_shared<RunnableExample>("#t6#"));
 
         ThreadPool pool = ThreadPool(2);
-        ThreadPool pool2 = ThreadPool(queue, 2);
         pool.execute(std::make_shared<RunnableExample>("#t7#"));
         pool.execute(std::make_shared<RunnableExample>("#t8#"));
         pool.execute(std::make_shared<RunnableExample>("#t9#"));
-
-        ThreadPoolDynamic pool1 = ThreadPoolDynamic();
 
         std::cout << "main thread sleep for 10s" << std::endl;
         std::this_thread::sleep_for(20s);
