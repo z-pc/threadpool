@@ -90,8 +90,8 @@ class IThreadPool : public boost::noncopyable_::noncopyable
 public:
     IThreadPool()
     {
-        m_poolSize = 0;
-        m_poolMaxSize = 0;
+        m_coreSize = 0;
+        m_maxSize = 0;
         m_aliveTime = 0s;
     };
     virtual ~IThreadPool(){};
@@ -102,8 +102,8 @@ public:
     virtual void terminate() = 0;
 
 protected:
-    std::uint32_t m_poolSize;
-    std::uint32_t m_poolMaxSize;
+    std::uint32_t m_coreSize;
+    std::uint32_t m_maxSize;
     std::chrono::nanoseconds m_aliveTime;
     PoolQueue m_taskQueue;
     std::vector<std::unique_ptr<std::thread>> m_threads;
@@ -116,16 +116,23 @@ protected:
     std::atomic_bool m_tpWaitForSignalStart = false;
 };
 
+/**
+ * @brief Manage tasks in parallel.
+ * At the time of initializing a threadpool, no has worker is created. Only until the threadpool
+ * receive a task, if no has any workers are idle, a new worker will create. Once the number of
+ * workers exceeds coreSize.
+ */
 class ThreadPool : public IThreadPool
 {
 public:
-    ThreadPool(std::uint32_t poolSize = THREAD_POOl_DEFAULT_POOL_SIZE,
-               std::uint32_t poolMaxSize = std::thread::hardware_concurrency(),
+    ThreadPool(std::uint32_t coreSize = THREAD_POOl_DEFAULT_POOL_SIZE,
+               std::uint32_t maxSize = std::thread::hardware_concurrency(),
                const std::chrono::nanoseconds& aliveTime = 60s, bool waitForSignalStart = false);
     virtual ~ThreadPool();
 
     virtual void push(std::shared_ptr<IRunnable> runnable);
     template <typename _Runnable, class... Args> void emplace(Args&&... args);
+
     void start();
     void wait();
     void terminate();

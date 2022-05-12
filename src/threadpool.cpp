@@ -130,8 +130,8 @@ ThreadPool::ThreadPool(std::uint32_t poolSize /*= THREAD_POOl_DEFAULT_POOL_SIZE*
                        const std::chrono::nanoseconds& aliveTime /*= 60s*/,
                        bool waitForSignalStart /*= false*/)
 {
-    m_poolSize = poolSize;
-    m_poolMaxSize = poolMaxSize;
+    m_coreSize = poolSize;
+    m_maxSize = poolMaxSize;
     m_aliveTime = aliveTime;
     m_tpWaitForSignalStart.store(waitForSignalStart);
 }
@@ -142,7 +142,7 @@ void threadpool::ThreadPool::push(std::shared_ptr<IRunnable> runnable)
 {
     cleanBackCompleteWorker();
 
-    if (m_workers.size() < m_poolMaxSize)
+    if (m_workers.size() < m_maxSize)
     {
         bool create = true;
         for (auto& w : m_workers)
@@ -157,7 +157,7 @@ void threadpool::ThreadPool::push(std::shared_ptr<IRunnable> runnable)
         if (create)
         {
             // Check if the number for main work is full, so we need to create seasonal workers.
-            if (m_workers.size() >= m_poolSize)
+            if (m_workers.size() >= m_coreSize)
                 createSeasonalWorker(1, m_aliveTime);
             else
                 createWorker(1);
