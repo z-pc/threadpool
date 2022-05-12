@@ -1,3 +1,4 @@
+#include "RunnableExample.h"
 #include "src/threadpool.h"
 #include <iostream>
 #include <stdio.h>
@@ -7,50 +8,37 @@
 using namespace std;
 using namespace threadpool;
 
-class RunnableExample : public threadpool::IRunnable
-{
-public:
-    RunnableExample(std::string name) { m_name = name; };
-    ~RunnableExample(){};
+#define tp_sleep_for(time)                                                                         \
+    tpLockPrint("main thread sleep for" << ((std::chrono::seconds)time).count() << "s");           \
+    std::this_thread::sleep_for(time);
 
-    virtual bool run() override
-    {
-        using namespace std::chrono_literals;
-        int loop = rand() % 10 + 1;
-
-        for (int i = 0; i < loop; i++)
-        {
-            {
-                std::cout << m_name << " running " << i << std::endl;
-            }
-        }
-
-        return true;
-    }
-
-    std::string m_name;
-};
-
+#define tp_push_taks(name)                                                                         \
+    tpLockPrint("main thread push" << name);                                                       \
+    pool.push(std::make_shared<RunnableExample>(name));
 
 int main(void)
 {
+    srand(time(NULL));
+
     try
     {
-        PoolQueue queue;
-        queue.push(std::make_shared<RunnableExample>("#t1#"));
-        queue.push(std::make_shared<RunnableExample>("#t2#"));
-        queue.push(std::make_shared<RunnableExample>("#t3#"));
-        queue.push(std::make_shared<RunnableExample>("#t4#"));
-        queue.push(std::make_shared<RunnableExample>("#t5#"));
-        queue.push(std::make_shared<RunnableExample>("#t6#"));
+        ThreadPool pool = ThreadPool(3, 6, 6s);
 
-        ThreadPool pool = ThreadPool(2);
-        pool.execute(std::make_shared<RunnableExample>("#t7#"));
-        pool.execute(std::make_shared<RunnableExample>("#t8#"));
-        pool.execute(std::make_shared<RunnableExample>("#t9#"));
+        pool.emplace<RunnableExample>("#test emplace#");
 
-        std::cout << "main thread sleep for 10s" << std::endl;
-        std::this_thread::sleep_for(20s);
+        tp_sleep_for(1s);
+        tp_push_taks("#t1");
+        tp_push_taks("#t2");
+        tp_push_taks("#t3");
+        tp_push_taks("#t4");
+        tp_sleep_for(3s);
+        tp_push_taks("#t5");
+        tp_sleep_for(2s);
+        tp_push_taks("#t6");
+        tp_push_taks("#t7");
+        tp_push_taks("#t8");
+
+        tp_sleep_for(60s);
 
         // someone somewhere in this galaxy say: "terminate"
         pool.terminate();
