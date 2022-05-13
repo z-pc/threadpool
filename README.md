@@ -3,7 +3,7 @@
 The implement for thread pool. This is help for manage threads, tasks so easy and safely.  
 Required:
 - C++ 14 is least
-- CMake minimum 3.20 to run example.  
+- CMake: minimum 3.20 to run examples.  
 
 How to add:  
 Just copy files in `src/*` to your project to using threadpool
@@ -30,3 +30,6 @@ Wait until workers actually finish.
 `pool.wait()`
 
 Is there an easier way for you to use threadpool?
+
+## Options with cmake  
+Enable `TP_CONSOLE` if you want to show activities of a threadpool in the console.
