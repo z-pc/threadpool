@@ -4,7 +4,7 @@
 // Author: Le Xuan Tuan Anh
 //
 // Copyright 2022 Le Xuan Tuan Anh
-// 
+//
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
@@ -140,7 +140,7 @@ threadpool::ThreadPool::~ThreadPool() { terminate(); }
 
 void threadpool::ThreadPool::push(std::shared_ptr<IRunnable> runnable)
 {
-    cleanBackCompleteWorker();
+    cleanCompleteWorker();
 
     if (m_workers.size() < m_maxSize)
     {
@@ -183,6 +183,12 @@ void threadpool::ThreadPool::wait()
         if (th->joinable()) th->join();
 }
 
+void ThreadPool::detach()
+{
+    for (auto& th : m_threads)
+        th->detach();
+}
+
 void threadpool::ThreadPool::terminate()
 {
     m_tpTerminal.store(true);
@@ -212,44 +218,31 @@ void ThreadPool::createSeasonalWorker(std::uint32_t count,
     }
 }
 
-bool ThreadPool::cleanBackCompleteWorker()
-{
-    if (m_workers.size() > 0)
-    {
-        std::size_t pos = m_workers.size() - 1;
-        if (m_workers.at(pos)->status.load(memory_order::memory_order_relaxed) == WorkerStatus::END)
-        {
-            auto& thread = m_threads.at(pos);
-
-            // validate again to make sure a worker is really ended;
-            if (thread->joinable()) thread->join();
-
-            // It is now safe to remove an employee who completed the mission
-            m_workers.erase(m_workers.begin() + pos);
-            m_threads.erase(m_threads.begin() + pos);
-        }
-        return true;
-    }
-    return false;
-}
-
 void ThreadPool::cleanCompleteWorker()
 {
-    auto workerSize = m_workers.size();
+    auto& workerIt = m_workers.begin();
+    auto& threadIt = m_threads.begin();
 
-    for (std::size_t pos = workerSize - 1; pos >= 0; pos--)
+    while (workerIt != m_workers.end())
     {
-        if (m_workers.at(pos)->status.load(memory_order::memory_order_relaxed) == WorkerStatus::END)
+        auto& worker = *workerIt;
+        auto& thread = *threadIt;
+
+        if (worker->status.load(memory_order::memory_order_relaxed) == WorkerStatus::END)
         {
-            auto& thread = m_threads.at(pos);
             if (thread->joinable())
             {
                 thread->join(); // validate again to make sure a worker is really ended;
             }
 
-            // It is now safe to remove an employee who completed the mission
-            m_workers.erase(m_workers.begin() + pos);
-            m_threads.erase(m_threads.begin() + pos);
+            // It is now safe to remove a worker who completed the mission
+            workerIt = m_workers.erase(workerIt);
+            threadIt = m_threads.erase(threadIt);
+        }
+        else
+        {
+            workerIt++;
+            threadIt++;
         }
     }
 }

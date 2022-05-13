@@ -56,6 +56,10 @@ enum WorkerStatus
 };
 
 class IThreadPool;
+
+/**
+ * @brief The interface of a runnable.
+ */
 class IRunnable
 {
 
@@ -83,6 +87,9 @@ struct Worker
     int id;
 };
 
+/**
+ * @brief The interface of thread pool.
+ */
 class IThreadPool : public boost::noncopyable_::noncopyable
 {
     friend Worker;
@@ -117,10 +124,17 @@ protected:
 };
 
 /**
- * @brief Manage tasks in parallel.
- * At the time of initializing a threadpool, no has worker is created. Only until the threadpool
- * receive a task, if no has any workers are idle, a new worker will create. Once the number of
- * workers exceeds coreSize.
+ * @brief Thread pool is a task distributor for multithreads, which limits the number of threads
+ * created but still completes the task safely.
+ * When thread pool receives a task, it consider if there are any idle workers to assign the task,
+ * if not, a new worker will be created.
+ * After completing the task, the worker will go to idle status to wait for the next task.
+ * These workers persist until the thread pool receives the termination signal.
+ * If the number of workers is equal to coreSize, the next new workers created will have aliveTime
+ * applied (temp call seasonal-worker).
+ * If a seasonal-worker is idle for aliveTime, it's destroyed.
+ * The total number of workers and seasonal-workers will not exceed maxSize.
+ *
  */
 class ThreadPool : public IThreadPool
 {
@@ -130,24 +144,57 @@ public:
                const std::chrono::nanoseconds& aliveTime = 60s, bool waitForSignalStart = false);
     virtual ~ThreadPool();
 
+    /**
+     * @brief Add a task to thread pool
+     * @param runnable the task to add
+     */
     virtual void push(std::shared_ptr<IRunnable> runnable);
+
+    /**
+     * @brief Add a task to thread pool. The task is constructed through forwarding arguments.
+     * @tparam _Runnable the implement type of IRunnable.
+     * @tparam Args the package type of forwarding arguments.
+     * @param args arguments to forward to the constructor of the implement runnable.
+     */
     template <typename _Runnable, class... Args> void emplace(Args&&... args);
 
+    /**
+     * @brief Signals notifying the thread pool to start executing tasks in the queue.
+     * This is not necessary if m_tpWaitForSignalStart was passed the true value in constructor.
+     */
     void start();
-    void wait();
+
+    /**
+     * @brief Signals notifying the thread pool to stop executing the remaining tasks. The executing
+     * tasks will continue until they actually finish.
+     * This does not actually force workers to stop working immediately.
+     * If want to make sure all executing tasks are finished before doing the next somethings, call
+     * wait() function then.
+     * This is also called implicitly in deconstructor.
+     */
     void terminate();
+
+    /**
+     * @brief Wait for workers complete tasks. This is safe to make sure all threads have been
+     * exited.
+     */
+    void wait();
+
+    /**
+     * @brief detach all current threads.
+     */
+    void detach();
 
 protected:
     virtual void createWorker(std::uint32_t count);
     virtual void createSeasonalWorker(std::uint32_t count,
                                       const std::chrono::nanoseconds& aliveTime);
     void cleanCompleteWorker();
-    bool cleanBackCompleteWorker();
 };
 
 template <typename _Runnable, class... Args> void threadpool::ThreadPool::emplace(Args&&... args)
 {
-    std::shared_ptr<IRunnable> r = std::make_shared<_Runnable>(std::forward<Args>(args)...);
+    auto r = std::make_shared<_Runnable>(std::forward<Args>(args)...);
     push(r);
 }
 
