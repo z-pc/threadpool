@@ -4,7 +4,7 @@
 // Author: Le Xuan Tuan Anh
 //
 // Copyright 2022 Le Xuan Tuan Anh
-// 
+//
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
@@ -130,8 +130,8 @@ ThreadPool::ThreadPool(std::uint32_t poolSize /*= THREAD_POOl_DEFAULT_POOL_SIZE*
                        const std::chrono::nanoseconds& aliveTime /*= 60s*/,
                        bool waitForSignalStart /*= false*/)
 {
-    m_poolSize = poolSize;
-    m_poolMaxSize = poolMaxSize;
+    m_coreSize = poolSize;
+    m_maxSize = poolMaxSize;
     m_aliveTime = aliveTime;
     m_tpWaitForSignalStart.store(waitForSignalStart);
 }
@@ -140,9 +140,9 @@ threadpool::ThreadPool::~ThreadPool() { terminate(); }
 
 void threadpool::ThreadPool::push(std::shared_ptr<IRunnable> runnable)
 {
-    cleanBackCompleteWorker();
+    cleanCompleteWorker();
 
-    if (m_workers.size() < m_poolMaxSize)
+    if (m_workers.size() < m_maxSize)
     {
         bool create = true;
         for (auto& w : m_workers)
@@ -157,7 +157,7 @@ void threadpool::ThreadPool::push(std::shared_ptr<IRunnable> runnable)
         if (create)
         {
             // Check if the number for main work is full, so we need to create seasonal workers.
-            if (m_workers.size() >= m_poolSize)
+            if (m_workers.size() >= m_coreSize)
                 createSeasonalWorker(1, m_aliveTime);
             else
                 createWorker(1);
@@ -181,6 +181,12 @@ void threadpool::ThreadPool::wait()
 {
     for (auto& th : m_threads)
         if (th->joinable()) th->join();
+}
+
+void ThreadPool::detach()
+{
+    for (auto& th : m_threads)
+        th->detach();
 }
 
 void threadpool::ThreadPool::terminate()
@@ -212,44 +218,31 @@ void ThreadPool::createSeasonalWorker(std::uint32_t count,
     }
 }
 
-bool ThreadPool::cleanBackCompleteWorker()
-{
-    if (m_workers.size() > 0)
-    {
-        std::size_t pos = m_workers.size() - 1;
-        if (m_workers.at(pos)->status.load(memory_order::memory_order_relaxed) == WorkerStatus::END)
-        {
-            auto& thread = m_threads.at(pos);
-
-            // validate again to make sure a worker is really ended;
-            if (thread->joinable()) thread->join();
-
-            // It is now safe to remove an employee who completed the mission
-            m_workers.erase(m_workers.begin() + pos);
-            m_threads.erase(m_threads.begin() + pos);
-        }
-        return true;
-    }
-    return false;
-}
-
 void ThreadPool::cleanCompleteWorker()
 {
-    auto workerSize = m_workers.size();
+    auto& workerIt = m_workers.begin();
+    auto& threadIt = m_threads.begin();
 
-    for (std::size_t pos = workerSize - 1; pos >= 0; pos--)
+    while (workerIt != m_workers.end())
     {
-        if (m_workers.at(pos)->status.load(memory_order::memory_order_relaxed) == WorkerStatus::END)
+        auto& worker = *workerIt;
+        auto& thread = *threadIt;
+
+        if (worker->status.load(memory_order::memory_order_relaxed) == WorkerStatus::END)
         {
-            auto& thread = m_threads.at(pos);
             if (thread->joinable())
             {
                 thread->join(); // validate again to make sure a worker is really ended;
             }
 
-            // It is now safe to remove an employee who completed the mission
-            m_workers.erase(m_workers.begin() + pos);
-            m_threads.erase(m_threads.begin() + pos);
+            // It is now safe to remove a worker who completed the mission
+            workerIt = m_workers.erase(workerIt);
+            threadIt = m_threads.erase(threadIt);
+        }
+        else
+        {
+            workerIt++;
+            threadIt++;
         }
     }
 }
