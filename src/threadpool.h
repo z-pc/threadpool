@@ -79,12 +79,12 @@ public:
 
 struct Worker
 {
-    Worker(int id);
+    Worker(std::uint32_t id);
     virtual int work(IThreadPool* pool, PoolQueue* queue);
     virtual int workFor(const std::chrono::nanoseconds& aliveTime, IThreadPool* pool,
                         PoolQueue* queue);
     std::atomic_int status;
-    int id;
+    std::uint32_t id;
 };
 
 /**
@@ -139,9 +139,10 @@ protected:
 class ThreadPool : public IThreadPool
 {
 public:
-    ThreadPool(std::uint32_t coreSize = THREAD_POOl_DEFAULT_POOL_SIZE,
-               std::uint32_t maxSize = std::thread::hardware_concurrency(),
-               const std::chrono::nanoseconds& aliveTime = 60s, bool waitForSignalStart = false);
+    explicit ThreadPool(std::uint32_t coreSize,
+                        std::uint32_t maxSize = std::thread::hardware_concurrency(),
+                        const std::chrono::nanoseconds& aliveTime = 60s,
+                        bool waitForSignalStart = false);
     virtual ~ThreadPool();
 
     /**
@@ -186,10 +187,21 @@ public:
     void detach();
 
 protected:
+    ThreadPool();
     virtual void createWorker(std::uint32_t count);
     virtual void createSeasonalWorker(std::uint32_t count,
                                       const std::chrono::nanoseconds& aliveTime);
     void cleanCompleteWorker();
+};
+
+class ThreadPoolFixed : public ThreadPool
+{
+public:
+    explicit ThreadPoolFixed(std::uint32_t coreSize, bool waitForSignalStart = false);
+    virtual ~ThreadPoolFixed(){};
+
+protected:
+    ThreadPoolFixed(){};
 };
 
 template <typename _Runnable, class... Args> void threadpool::ThreadPool::emplace(Args&&... args)

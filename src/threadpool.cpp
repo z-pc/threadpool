@@ -33,7 +33,7 @@ using namespace std;
 
 threadpool::PoolQueue::PoolQueue() {}
 
-Worker::Worker(int id)
+Worker::Worker(std::uint32_t id)
 {
     status.store(NOAVAILABLE);
     this->id = id;
@@ -195,6 +195,8 @@ void threadpool::ThreadPool::terminate()
     m_tpCV.notify_all();
 }
 
+ThreadPool::ThreadPool() : IThreadPool() {}
+
 void threadpool::ThreadPool::createWorker(std::uint32_t count)
 {
     for (std::uint32_t i = 0; i < count; i++)
@@ -245,4 +247,12 @@ void ThreadPool::cleanCompleteWorker()
             threadIt++;
         }
     }
+}
+
+ThreadPoolFixed::ThreadPoolFixed(std::uint32_t coreSize /*= THREAD_POOl_DEFAULT_POOL_SIZE*/,
+                                 bool waitForSignalStart /*= false*/)
+{
+    m_coreSize = coreSize;
+    m_maxSize = coreSize;
+    m_tpWaitForSignalStart.store(waitForSignalStart);
 }
