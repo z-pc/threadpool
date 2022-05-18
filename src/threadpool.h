@@ -131,7 +131,7 @@ protected:
  * After completing the task, the worker will go to idle status to wait for the next task.
  * These workers persist until the thread pool receives the termination signal.
  * If the number of workers is equal to coreSize, the next new workers created will have aliveTime
- * applied (temp call seasonal-worker).
+ * applied (seasonal-worker).
  * If a seasonal-worker is idle for aliveTime, it's destroyed.
  * The total number of workers and seasonal-workers will not exceed maxSize.
  *
@@ -194,6 +194,16 @@ protected:
     void cleanCompleteWorker();
 };
 
+template <typename _Runnable, class... Args> void threadpool::ThreadPool::emplace(Args&&... args)
+{
+    auto r = std::make_shared<_Runnable>(std::forward<Args>(args)...);
+    push(r);
+}
+
+/**
+ * @brief ThreadPoolFixed is the same as with ThreadPool.
+ * However, this does not create a worker with alive time (seasonal-worker).
+ */
 class ThreadPoolFixed : public ThreadPool
 {
 public:
@@ -203,12 +213,6 @@ public:
 protected:
     ThreadPoolFixed(){};
 };
-
-template <typename _Runnable, class... Args> void threadpool::ThreadPool::emplace(Args&&... args)
-{
-    auto r = std::make_shared<_Runnable>(std::forward<Args>(args)...);
-    push(r);
-}
 
 } // namespace threadpool
 
