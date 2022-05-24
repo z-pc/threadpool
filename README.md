@@ -5,8 +5,11 @@ Required:
 - C++ 14 is least
 - CMake: minimum 3.20 to run examples.  
 
-How to add:  
+### Add to your project:  
 Just copy files in `src/*` to your project to using threadpool
+
+### Run examples
+`cmake .. -G "Visual Studio 16 2019" -Ax64`
 
 ## Example  
 Create thread pool  
