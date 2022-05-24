@@ -37,7 +37,7 @@ Worker::Worker(std::uint32_t id)
 {
     status.store(NOAVAILABLE);
     this->id = id;
-    tpLockPrint("create worker " << id);
+    _tpLockPrint("create worker " << id);
 }
 
 int Worker::work(IThreadPool* pool, PoolQueue* queue)
@@ -48,7 +48,7 @@ int Worker::work(IThreadPool* pool, PoolQueue* queue)
         {
             std::unique_lock lk{pool->m_mtQueue};
             status.store(WAITTING);
-            tpLockPrint("worker " << this->id << " is waiting");
+            _tpLockPrint("worker " << this->id << " is waiting");
             pool->m_tpCV.wait(
                 lk,
                 [&]()
@@ -58,17 +58,14 @@ int Worker::work(IThreadPool* pool, PoolQueue* queue)
                 });
 
             if (pool->m_tpTerminal.load(std::memory_order_relaxed)) break;
-
-            // get back element
             backElm = queue->front();
             queue->pop();
-
             lk.unlock();
         }
 
         if (backElm)
         {
-            tpLockPrint("worker " << this->id << " is getting a task");
+            _tpLockPrint("worker " << this->id << " is getting a task");
             status.store(BUSY);
             backElm->run();
         }
@@ -77,7 +74,7 @@ int Worker::work(IThreadPool* pool, PoolQueue* queue)
     } while (true);
 
     status.store(END);
-    tpLockPrint("worker " << this->id << " is exited");
+    _tpLockPrint("worker " << this->id << " is exited");
     return 1;
 }
 
@@ -89,7 +86,7 @@ int Worker::workFor(const std::chrono::nanoseconds& aliveTime, IThreadPool* pool
         {
             std::unique_lock lk{pool->m_mtQueue};
             status.store(WAITTING);
-            tpLockPrint("s-worker " << this->id << " is waiting");
+            _tpLockPrint("s-worker " << this->id << " is waiting");
             if (!pool->m_tpCV.wait_for(
                     lk, aliveTime,
                     [&]()
@@ -103,16 +100,14 @@ int Worker::workFor(const std::chrono::nanoseconds& aliveTime, IThreadPool* pool
             }
 
             if (pool->m_tpTerminal.load(std::memory_order_relaxed)) break;
-            // get back element
             backElm = queue->front();
             queue->pop();
-
             lk.unlock();
         }
 
         if (backElm)
         {
-            tpLockPrint("s-worker " << this->id << " is getting a task");
+            _tpLockPrint("s-worker " << this->id << " is getting a task");
             status.store(BUSY);
             backElm->run();
         }
@@ -121,7 +116,7 @@ int Worker::workFor(const std::chrono::nanoseconds& aliveTime, IThreadPool* pool
     } while (true);
 
     status.store(END);
-    tpLockPrint("s-worker " << this->id << " is exited");
+    _tpLockPrint("s-worker " << this->id << " is exited");
     return 1;
 }
 
@@ -137,6 +132,14 @@ ThreadPool::ThreadPool(std::uint32_t poolSize /*= THREAD_POOl_DEFAULT_POOL_SIZE*
 }
 
 threadpool::ThreadPool::~ThreadPool() { terminate(); }
+
+bool ThreadPool::isIdle()
+{
+    for (auto& w : m_workers)
+        if (w->status.load(std::memory_order_relaxed) != threadpool::WAITTING) return false;
+
+    return true;
+}
 
 void threadpool::ThreadPool::push(std::shared_ptr<IRunnable> runnable)
 {

@@ -13,7 +13,7 @@ public:
 
         for (int i = 0; i < loop; i++)
         {
-            tpLockPrint(m_name << " running " << i);
+            _tpLockPrint(m_name << " running " << i);
             std::this_thread::sleep_for(1s);
         }
 

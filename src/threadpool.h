@@ -33,13 +33,13 @@
 
 #ifdef TP_CONSOLE
 extern std::mutex _tpMtCout;
-#define tpLockPrint(text)                                                                          \
+#define _tpLockPrint(text)                                                                         \
     {                                                                                              \
         std::lock_guard lk(_tpMtCout);                                                             \
         std::cout << ">" << text << std::endl;                                                     \
     }
 #else
-#define tpLockPrint(text)
+#define _tpLockPrint(text)
 #endif
 
 namespace threadpool
@@ -103,10 +103,44 @@ public:
     };
     virtual ~IThreadPool(){};
 
+    /**
+     * @brief Check idle of all workers.
+     * @return true if all workers  waiting for a new task, false if has any-workers doing.
+     */
+    virtual bool isIdle() = 0;
+
+    /**
+     * @brief Add a task to thread pool
+     * @param runnable the task to add
+     */
     virtual void push(std::shared_ptr<IRunnable> runnable) = 0;
+
+    /**
+     * @brief Signals notifying the thread pool to start executing tasks in the queue.
+     * This is not necessary if m_tpWaitForSignalStart was passed the true value in constructor.
+     */
     virtual void start() = 0;
+
+    /**
+     * @brief Wait for workers complete tasks. This is safe to make sure all threads have been
+     * exited.
+     */
     virtual void wait() = 0;
+
+    /**
+     * @brief Signals notifying the thread pool to stop executing the remaining tasks. The executing
+     * tasks will continue until they actually finish.
+     * This does not actually force workers to stop working immediately.
+     * If want to make sure all executing tasks are finished before doing the next somethings, call
+     * wait() function then.
+     * This is also called implicitly in deconstructor.
+     */
     virtual void terminate() = 0;
+
+    /**
+     * @brief detach all current threads.
+     */
+    virtual void detach() = 0;
 
 protected:
     std::uint32_t m_coreSize;
@@ -124,8 +158,8 @@ protected:
 };
 
 /**
- * @brief Thread pool is a task distributor for multithreads, which limits the number of threads
- * created but still completes the task safely.
+ * @brief Thread pool is a base task distributor for multithreads, which limits the number of
+ * threads created but still completes the task safely.
  * When thread pool receives a task, it consider if there are any idle workers to assign the task,
  * if not, a new worker will be created.
  * After completing the task, the worker will go to idle status to wait for the next task.
@@ -145,11 +179,12 @@ public:
                         bool waitForSignalStart = false);
     virtual ~ThreadPool();
 
-    /**
-     * @brief Add a task to thread pool
-     * @param runnable the task to add
-     */
+    virtual bool isIdle();
     virtual void push(std::shared_ptr<IRunnable> runnable);
+    void start();
+    void terminate();
+    void wait();
+    void detach();
 
     /**
      * @brief Add a task to thread pool. The task is constructed through forwarding arguments.
@@ -158,33 +193,6 @@ public:
      * @param args arguments to forward to the constructor of the implement runnable.
      */
     template <typename _Runnable, class... Args> void emplace(Args&&... args);
-
-    /**
-     * @brief Signals notifying the thread pool to start executing tasks in the queue.
-     * This is not necessary if m_tpWaitForSignalStart was passed the true value in constructor.
-     */
-    void start();
-
-    /**
-     * @brief Signals notifying the thread pool to stop executing the remaining tasks. The executing
-     * tasks will continue until they actually finish.
-     * This does not actually force workers to stop working immediately.
-     * If want to make sure all executing tasks are finished before doing the next somethings, call
-     * wait() function then.
-     * This is also called implicitly in deconstructor.
-     */
-    void terminate();
-
-    /**
-     * @brief Wait for workers complete tasks. This is safe to make sure all threads have been
-     * exited.
-     */
-    void wait();
-
-    /**
-     * @brief detach all current threads.
-     */
-    void detach();
 
 protected:
     ThreadPool();
