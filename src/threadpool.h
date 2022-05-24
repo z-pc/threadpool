@@ -80,9 +80,9 @@ public:
 struct Worker
 {
     Worker(std::uint32_t id);
-    virtual int work(IThreadPool* pool, PoolQueue* queue);
-    virtual int workFor(const std::chrono::nanoseconds& aliveTime, IThreadPool* pool,
-                        PoolQueue* queue);
+    virtual int work(IThreadPool& pool, PoolQueue& queue);
+    virtual int workFor(const std::chrono::nanoseconds& aliveTime, IThreadPool& pool,
+                        PoolQueue& queue);
     std::atomic_int status;
     std::uint32_t id;
 };

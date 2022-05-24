@@ -40,26 +40,26 @@ Worker::Worker(std::uint32_t id)
     _tpLockPrint("create worker " << id);
 }
 
-int Worker::work(IThreadPool* pool, PoolQueue* queue)
+int Worker::work(IThreadPool& pool, PoolQueue& queue)
 {
     std::shared_ptr<threadpool::IRunnable> backElm = nullptr;
     do
     {
         {
-            std::unique_lock lk{pool->m_mtQueue};
+            std::unique_lock lk{pool.m_mtQueue};
             status.store(WAITTING);
             _tpLockPrint("worker " << this->id << " is waiting");
-            pool->m_tpCV.wait(
+            pool.m_tpCV.wait(
                 lk,
                 [&]()
                 {
-                    return !pool->m_tpWaitForSignalStart.load(std::memory_order_relaxed) &&
-                           (pool->m_tpTerminal.load(std::memory_order_relaxed) || !queue->empty());
+                    return !pool.m_tpWaitForSignalStart.load(std::memory_order_relaxed) &&
+                           (pool.m_tpTerminal.load(std::memory_order_relaxed) || !queue.empty());
                 });
 
-            if (pool->m_tpTerminal.load(std::memory_order_relaxed)) break;
-            backElm = queue->front();
-            queue->pop();
+            if (pool.m_tpTerminal.load(std::memory_order_relaxed)) break;
+            backElm = queue.front();
+            queue.pop();
             lk.unlock();
         }
 
@@ -78,30 +78,30 @@ int Worker::work(IThreadPool* pool, PoolQueue* queue)
     return 1;
 }
 
-int Worker::workFor(const std::chrono::nanoseconds& aliveTime, IThreadPool* pool, PoolQueue* queue)
+int Worker::workFor(const std::chrono::nanoseconds& aliveTime, IThreadPool& pool, PoolQueue& queue)
 {
     std::shared_ptr<threadpool::IRunnable> backElm = nullptr;
     do
     {
         {
-            std::unique_lock lk{pool->m_mtQueue};
+            std::unique_lock lk{pool.m_mtQueue};
             status.store(WAITTING);
             _tpLockPrint("s-worker " << this->id << " is waiting");
-            if (!pool->m_tpCV.wait_for(
+            if (!pool.m_tpCV.wait_for(
                     lk, aliveTime,
                     [&]()
                     {
-                        return !pool->m_tpWaitForSignalStart.load(std::memory_order_relaxed) &&
-                               (pool->m_tpTerminal.load(std::memory_order_relaxed) ||
-                                !queue->empty());
+                        return !pool.m_tpWaitForSignalStart.load(std::memory_order_relaxed) &&
+                               (pool.m_tpTerminal.load(std::memory_order_relaxed) ||
+                                !queue.empty());
                     }))
             {
                 break;
             }
 
-            if (pool->m_tpTerminal.load(std::memory_order_relaxed)) break;
-            backElm = queue->front();
-            queue->pop();
+            if (pool.m_tpTerminal.load(std::memory_order_relaxed)) break;
+            backElm = queue.front();
+            queue.pop();
             lk.unlock();
         }
 
@@ -206,8 +206,8 @@ void threadpool::ThreadPool::createWorker(std::uint32_t count)
     {
         m_workers.push_back(std::make_unique<threadpool::Worker>(m_workers.size()));
         auto workerRaw = m_workers.back().get();
-        m_threads.push_back(
-            std::make_unique<std::thread>(&Worker::work, workerRaw, this, &m_taskQueue));
+        m_threads.push_back(std::make_unique<std::thread>(&Worker::work, workerRaw, std::ref(*this),
+                                                          std::ref(m_taskQueue)));
     }
 }
 
@@ -219,7 +219,7 @@ void ThreadPool::createSeasonalWorker(std::uint32_t count,
         m_workers.push_back(std::make_unique<threadpool::Worker>(m_workers.size()));
         auto workerRaw = m_workers.back().get();
         m_threads.push_back(std::make_unique<std::thread>(&Worker::workFor, workerRaw, aliveTime,
-                                                          this, &m_taskQueue));
+                                                          std::ref(*this), std::ref(m_taskQueue)));
     }
 }
 
