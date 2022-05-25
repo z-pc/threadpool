@@ -3,13 +3,19 @@
 class RunnableExample : public threadpool::IRunnable
 {
 public:
-    RunnableExample(std::string name) { m_name = name; };
+    RunnableExample(std::string name)
+    {
+        m_name = name;
+        loop = rand() % 10 + 2;
+        _tpLockPrint(m_name << " loop " << loop);
+    };
     ~RunnableExample(){};
 
     virtual bool run() override
     {
-        using namespace std::chrono_literals;
-        int loop = rand() % 10 + 1;
+
+        srand(time(NULL));
+        using namespace std::chrono_literals;        
 
         for (int i = 0; i < loop; i++)
         {
@@ -21,4 +27,5 @@ public:
     }
 
     std::string m_name;
+    int loop;
 };

@@ -50,7 +50,8 @@ using namespace std::literals::chrono_literals;
 enum WorkerStatus
 {
     NOAVAILABLE,
-    WAITTING,
+    WAITTING_TASK,
+    WAITTING_START,
     BUSY,
     END
 };
@@ -85,6 +86,9 @@ struct Worker
                         PoolQueue& queue);
     std::atomic_int status;
     std::uint32_t id;
+
+protected:
+    void waitForStartSignal(IThreadPool& pool);
 };
 
 /**
@@ -151,7 +155,6 @@ protected:
     std::vector<std::unique_ptr<threadpool::Worker>> m_workers;
 
     std::mutex m_mtQueue;
-    std::mutex m_mtThreads;
     std::condition_variable m_tpCV;
     std::atomic_bool m_tpTerminal = false;
     std::atomic_bool m_tpWaitForSignalStart = false;
@@ -181,7 +184,7 @@ public:
 
     virtual bool isIdle();
     virtual void push(std::shared_ptr<IRunnable> runnable);
-    void start();
+    virtual void start();
     void terminate();
     void wait();
     void detach();
@@ -195,7 +198,7 @@ public:
     template <typename _Runnable, class... Args> void emplace(Args&&... args);
 
 protected:
-    ThreadPool();
+    ThreadPool() = default;
     virtual void createWorker(std::uint32_t count);
     virtual void createSeasonalWorker(std::uint32_t count,
                                       const std::chrono::nanoseconds& aliveTime);
@@ -209,17 +212,22 @@ template <typename _Runnable, class... Args> void threadpool::ThreadPool::emplac
 }
 
 /**
- * @brief ThreadPoolFixed is the same as with ThreadPool.
- * However, this does not create a worker with alive time (seasonal-worker).
+ * @brief ThreadPoolFixed is the same with ThreadPool.
+ * However,
+ * All tasks are executed only after the start signal is given.
+ * The thread pool is automatically terminated when no has any task in the queue or the terminate
+ * signal is given.
+ * The new tasks are still pushable after the start signal is given.
  */
 class ThreadPoolFixed : public ThreadPool
 {
 public:
-    explicit ThreadPoolFixed(std::uint32_t coreSize, bool waitForSignalStart = false);
-    virtual ~ThreadPoolFixed(){};
+    explicit ThreadPoolFixed(std::uint32_t coreSize);
+    ~ThreadPoolFixed();
 
 protected:
-    ThreadPoolFixed(){};
+    ThreadPoolFixed() = default;
+    virtual void createWorker(std::uint32_t count);
 };
 
 } // namespace threadpool

@@ -42,20 +42,19 @@ Worker::Worker(std::uint32_t id)
 
 int Worker::work(IThreadPool& pool, PoolQueue& queue)
 {
+    waitForStartSignal(pool);
+
     std::shared_ptr<threadpool::IRunnable> backElm = nullptr;
     do
     {
         {
             std::unique_lock lk{pool.m_mtQueue};
-            status.store(WAITTING);
-            _tpLockPrint("worker " << this->id << " is waiting");
+            status.store(WAITTING_TASK);
+            _tpLockPrint("worker " << this->id << " is waiting for new task");
+
             pool.m_tpCV.wait(
-                lk,
-                [&]()
-                {
-                    return !pool.m_tpWaitForSignalStart.load(std::memory_order_relaxed) &&
-                           (pool.m_tpTerminal.load(std::memory_order_relaxed) || !queue.empty());
-                });
+                lk, [&]()
+                { return (pool.m_tpTerminal.load(std::memory_order_relaxed) || !queue.empty()); });
 
             if (pool.m_tpTerminal.load(std::memory_order_relaxed)) break;
             backElm = queue.front();
@@ -80,26 +79,24 @@ int Worker::work(IThreadPool& pool, PoolQueue& queue)
 
 int Worker::workFor(const std::chrono::nanoseconds& aliveTime, IThreadPool& pool, PoolQueue& queue)
 {
+    waitForStartSignal(pool);
+
     std::shared_ptr<threadpool::IRunnable> backElm = nullptr;
     do
     {
         {
             std::unique_lock lk{pool.m_mtQueue};
-            status.store(WAITTING);
-            _tpLockPrint("s-worker " << this->id << " is waiting");
-            if (!pool.m_tpCV.wait_for(
-                    lk, aliveTime,
-                    [&]()
-                    {
-                        return !pool.m_tpWaitForSignalStart.load(std::memory_order_relaxed) &&
-                               (pool.m_tpTerminal.load(std::memory_order_relaxed) ||
-                                !queue.empty());
-                    }))
-            {
-                break;
-            }
+            status.store(WAITTING_TASK);
+            _tpLockPrint("s-worker " << this->id << " is waiting for new task");
 
-            if (pool.m_tpTerminal.load(std::memory_order_relaxed)) break;
+            pool.m_tpCV.wait_for(lk, aliveTime,
+                                 [&]() {
+                                     return pool.m_tpTerminal.load(std::memory_order_relaxed) ||
+                                            !queue.empty();
+                                 });
+
+            if (pool.m_tpTerminal.load(std::memory_order_relaxed) || queue.empty()) break;
+
             backElm = queue.front();
             queue.pop();
             lk.unlock();
@@ -120,6 +117,16 @@ int Worker::workFor(const std::chrono::nanoseconds& aliveTime, IThreadPool& pool
     return 1;
 }
 
+void Worker::waitForStartSignal(IThreadPool& pool)
+{
+    std::unique_lock lk{pool.m_mtQueue};
+    status.store(WAITTING_START);
+    _tpLockPrint("worker " << this->id << " is waiting for start signal");
+    pool.m_tpCV.wait(lk, [&]()
+                     { return !pool.m_tpWaitForSignalStart.load(std::memory_order_relaxed); });
+    lk.unlock();
+}
+
 ThreadPool::ThreadPool(std::uint32_t poolSize /*= THREAD_POOl_DEFAULT_POOL_SIZE*/,
                        std::uint32_t poolMaxSize /*= std::thread::hardware_concurrency()*/,
                        const std::chrono::nanoseconds& aliveTime /*= 60s*/,
@@ -136,7 +143,7 @@ threadpool::ThreadPool::~ThreadPool() { terminate(); }
 bool ThreadPool::isIdle()
 {
     for (auto& w : m_workers)
-        if (w->status.load(std::memory_order_relaxed) != threadpool::WAITTING) return false;
+        if (w->status.load(std::memory_order_relaxed) != threadpool::WAITTING_TASK) return false;
 
     return true;
 }
@@ -150,7 +157,7 @@ void threadpool::ThreadPool::push(std::shared_ptr<IRunnable> runnable)
         bool create = true;
         for (auto& w : m_workers)
         {
-            if (w->status.load(std::memory_order_relaxed) == threadpool::WAITTING)
+            if (w->status.load(std::memory_order_relaxed) == threadpool::WAITTING_TASK)
             {
                 create = false;
                 break;
@@ -197,8 +204,6 @@ void threadpool::ThreadPool::terminate()
     m_tpTerminal.store(true);
     m_tpCV.notify_all();
 }
-
-ThreadPool::ThreadPool() : IThreadPool() {}
 
 void threadpool::ThreadPool::createWorker(std::uint32_t count)
 {
@@ -252,10 +257,10 @@ void ThreadPool::cleanCompleteWorker()
     }
 }
 
-ThreadPoolFixed::ThreadPoolFixed(std::uint32_t coreSize /*= THREAD_POOl_DEFAULT_POOL_SIZE*/,
-                                 bool waitForSignalStart /*= false*/)
+ThreadPoolFixed::ThreadPoolFixed(std::uint32_t coreSize) : ThreadPool(coreSize, coreSize, 0s, true)
 {
-    m_coreSize = coreSize;
-    m_maxSize = coreSize;
-    m_tpWaitForSignalStart.store(waitForSignalStart);
 }
+
+ThreadPoolFixed::~ThreadPoolFixed() {}
+
+void ThreadPoolFixed::createWorker(std::uint32_t count) { createSeasonalWorker(count, 0s); }
