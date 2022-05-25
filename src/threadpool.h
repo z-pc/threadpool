@@ -144,7 +144,7 @@ public:
 
     /**
      * @brief Check executable of the thread pool for a new task.
-     * @return true if a new task is executable, otherwise false.
+     * @return true if possible, otherwise false.
      */
     virtual bool executable() = 0;
 
