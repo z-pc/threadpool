@@ -143,6 +143,12 @@ public:
     virtual void terminate() = 0;
 
     /**
+     * @brief Check executable of the thread pool for a new task.
+     * @return true if a new task is executable, otherwise false.
+     */
+    virtual bool executable() = 0;
+
+    /**
      * @brief detach all current threads.
      */
     virtual void detach() = 0;
@@ -185,10 +191,12 @@ public:
 
     virtual bool isIdle();
     virtual bool push(std::shared_ptr<IRunnable> runnable);
-    virtual void start();
-    void terminate();
-    void wait();
-    void detach();
+
+    /**
+     * @brief Check executable of the thread pool for a new task.
+     * @return false if the terminate signal is given, otherwise true.
+     */
+    virtual bool executable();
 
     /**
      * @brief Add a task to thread pool. The task is constructed through forwarding arguments.
@@ -197,6 +205,11 @@ public:
      * @param args arguments to forward to the constructor of the implement runnable.
      */
     template <typename _Runnable, class... Args> void emplace(Args&&... args);
+
+    void start();
+    void terminate();
+    void wait();
+    void detach();
 
 protected:
     ThreadPool() = default;
@@ -226,6 +239,12 @@ class ThreadPoolFixed : public ThreadPool
 public:
     explicit ThreadPoolFixed(std::uint32_t coreSize);
     ~ThreadPoolFixed();
+
+    /**
+     * @brief Check executable of the thread pool for a new task.
+     * @return false if the terminate signal is given or the thread pool is exited, otherwise true.
+     */
+    virtual bool executable();
 
 protected:
     ThreadPoolFixed() = default;

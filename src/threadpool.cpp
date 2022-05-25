@@ -150,10 +150,10 @@ bool ThreadPool::isIdle()
 
 bool threadpool::ThreadPool::push(std::shared_ptr<IRunnable> runnable)
 {
-    cleanCompleteWorker();
-
-    if (!m_tpTerminal.load(memory_order::memory_order_relaxed))
+    if (executable())
     {
+        cleanCompleteWorker();
+
         if (m_workers.size() < m_maxSize)
         {
             bool create = true;
@@ -184,8 +184,7 @@ bool threadpool::ThreadPool::push(std::shared_ptr<IRunnable> runnable)
 
         return true;
     }
-    else
-        return false;
+    return false;
 }
 
 void threadpool::ThreadPool::start()
@@ -211,6 +210,8 @@ void threadpool::ThreadPool::terminate()
     m_tpTerminal.store(true);
     m_tpCV.notify_all();
 }
+
+bool ThreadPool::executable() { return !m_tpTerminal.load(memory_order::memory_order_relaxed); }
 
 void threadpool::ThreadPool::createWorker(std::uint32_t count)
 {
@@ -271,3 +272,14 @@ ThreadPoolFixed::ThreadPoolFixed(std::uint32_t coreSize) : ThreadPool(coreSize, 
 ThreadPoolFixed::~ThreadPoolFixed() {}
 
 void ThreadPoolFixed::createWorker(std::uint32_t count) { createSeasonalWorker(count, 0s); }
+
+bool ThreadPoolFixed::executable()
+{
+    if (ThreadPool::executable() == false)
+        return false;
+    else
+    {
+        cleanCompleteWorker();
+        return m_workers.size() > 0;
+    }
+}
