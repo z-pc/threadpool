@@ -72,8 +72,8 @@ int Worker::work(IThreadPool& pool, PoolQueue& queue)
 
     } while (true);
 
-    status.store(END);
     _tpLockPrint("worker " << this->id << " is exited");
+    status.store(END);
     return 1;
 }
 
@@ -112,8 +112,8 @@ int Worker::workFor(const std::chrono::nanoseconds& aliveTime, IThreadPool& pool
 
     } while (true);
 
-    status.store(END);
     _tpLockPrint("s-worker " << this->id << " is exited");
+    status.store(END);
     return 1;
 }
 
@@ -148,37 +148,44 @@ bool ThreadPool::isIdle()
     return true;
 }
 
-void threadpool::ThreadPool::push(std::shared_ptr<IRunnable> runnable)
+bool threadpool::ThreadPool::push(std::shared_ptr<IRunnable> runnable)
 {
     cleanCompleteWorker();
 
-    if (m_workers.size() < m_maxSize)
+    if (!m_tpTerminal.load(memory_order::memory_order_relaxed))
     {
-        bool create = true;
-        for (auto& w : m_workers)
+        if (m_workers.size() < m_maxSize)
         {
-            if (w->status.load(std::memory_order_relaxed) == threadpool::WAITTING_TASK)
+            bool create = true;
+            for (auto& w : m_workers)
             {
-                create = false;
-                break;
+                if (w->status.load(std::memory_order_relaxed) == threadpool::WAITTING_TASK)
+                {
+                    create = false;
+                    break;
+                }
+            }
+
+            if (create)
+            {
+                // Check if the number for main work is full, so we need to create seasonal workers.
+                if (m_workers.size() >= m_coreSize)
+                    createSeasonalWorker(1, m_aliveTime);
+                else
+                    createWorker(1);
             }
         }
 
-        if (create)
         {
-            // Check if the number for main work is full, so we need to create seasonal workers.
-            if (m_workers.size() >= m_coreSize)
-                createSeasonalWorker(1, m_aliveTime);
-            else
-                createWorker(1);
+            std::lock_guard lk{m_mtQueue};
+            m_taskQueue.push(runnable);
+            m_tpCV.notify_one();
         }
-    }
 
-    {
-        std::lock_guard lk{m_mtQueue};
-        m_taskQueue.push(runnable);
-        m_tpCV.notify_one();
+        return true;
     }
+    else
+        return false;
 }
 
 void threadpool::ThreadPool::start()

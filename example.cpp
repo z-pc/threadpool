@@ -61,11 +61,30 @@ void testThreadPoolFixed()
     cout << "Wait done" << endl;
 }
 
+void testTerminate()
+{
+    ThreadPool pool = ThreadPool(1, 3, 20s);
+
+    tp_push_taks("#t1");
+    tp_push_taks("#t2");
+
+    tp_sleep_for(2s);
+    _tpLockPrint("terminate");
+    pool.terminate();
+
+    tp_push_taks("#t3");
+    tp_push_taks("#t4");
+
+    tp_sleep_for(1min);
+    pool.wait();
+    cout << "wait done" << endl;
+}
+
 int main(void)
 {
     try
     {
-        testThreadPoolFixed();
+        testTerminate();
     }
     catch (const exception& e)
     {

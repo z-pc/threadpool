@@ -114,10 +114,11 @@ public:
     virtual bool isIdle() = 0;
 
     /**
-     * @brief Add a task to thread pool
+     * @brief Add a task to thread pool.
      * @param runnable the task to add
+     * @return false if the thread pool was exited, otherwise true.
      */
-    virtual void push(std::shared_ptr<IRunnable> runnable) = 0;
+    virtual bool push(std::shared_ptr<IRunnable> runnable) = 0;
 
     /**
      * @brief Signals notifying the thread pool to start executing tasks in the queue.
@@ -183,7 +184,7 @@ public:
     virtual ~ThreadPool();
 
     virtual bool isIdle();
-    virtual void push(std::shared_ptr<IRunnable> runnable);
+    virtual bool push(std::shared_ptr<IRunnable> runnable);
     virtual void start();
     void terminate();
     void wait();
@@ -215,9 +216,10 @@ template <typename _Runnable, class... Args> void threadpool::ThreadPool::emplac
  * @brief ThreadPoolFixed is the same with ThreadPool.
  * However,
  * All tasks are executed only after the start signal is given.
- * The thread pool is automatically terminated when no has any task in the queue or the terminate
- * signal is given.
- * The new tasks are still pushable after the start signal is given.
+ * The thread pool will exit automatically when there are no more tasks in the queue or the
+ * terminate signal is given.
+ * The new tasks are still pushable and executable after the start signal is given, as long as the
+ * thread pool is still not exited.
  */
 class ThreadPoolFixed : public ThreadPool
 {
