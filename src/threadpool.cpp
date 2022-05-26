@@ -148,7 +148,7 @@ bool ThreadPool::isIdle()
     return true;
 }
 
-bool threadpool::ThreadPool::push(std::shared_ptr<IRunnable> runnable)
+void threadpool::ThreadPool::push(std::shared_ptr<IRunnable> runnable)
 {
     if (executable())
     {
@@ -181,10 +181,9 @@ bool threadpool::ThreadPool::push(std::shared_ptr<IRunnable> runnable)
             m_taskQueue.push(runnable);
             m_tpCV.notify_one();
         }
-
-        return true;
     }
-    return false;
+    else
+        throw std::exception("Thread pool is exited");
 }
 
 void threadpool::ThreadPool::start()

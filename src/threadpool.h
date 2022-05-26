@@ -118,7 +118,7 @@ public:
      * @param runnable the task to add
      * @return false if the thread pool was exited, otherwise true.
      */
-    virtual bool push(std::shared_ptr<IRunnable> runnable) = 0;
+    virtual void push(std::shared_ptr<IRunnable> runnable) = 0;
 
     /**
      * @brief Signals notifying the thread pool to start executing tasks in the queue.
@@ -190,7 +190,7 @@ public:
     virtual ~ThreadPool();
 
     virtual bool isIdle();
-    virtual bool push(std::shared_ptr<IRunnable> runnable);
+    virtual void push(std::shared_ptr<IRunnable> runnable);
 
     /**
      * @brief Check executable of the thread pool for a new task.
