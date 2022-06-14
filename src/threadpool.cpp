@@ -148,7 +148,7 @@ bool ThreadPool::isIdle()
     return true;
 }
 
-void threadpool::ThreadPool::push(std::shared_ptr<IRunnable> runnable)
+bool threadpool::ThreadPool::push(std::shared_ptr<IRunnable> runnable)
 {
     if (executable())
     {
@@ -181,9 +181,9 @@ void threadpool::ThreadPool::push(std::shared_ptr<IRunnable> runnable)
             m_taskQueue.push(runnable);
             m_tpCV.notify_one();
         }
+        return true;
     }
-    else
-        throw std::exception("Thread pool is exited");
+    return false;
 }
 
 void threadpool::ThreadPool::start()
@@ -237,8 +237,8 @@ void ThreadPool::createSeasonalWorker(std::uint32_t count,
 
 void ThreadPool::cleanCompleteWorker()
 {
-    auto& workerIt = m_workers.begin();
-    auto& threadIt = m_threads.begin();
+    auto workerIt = m_workers.begin();
+    auto threadIt = m_threads.begin();
 
     while (workerIt != m_workers.end())
     {

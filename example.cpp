@@ -75,21 +75,16 @@ void testTerminate()
     tp_push_taks("#t3");
     tp_push_taks("#t4");
 
-    tp_sleep_for(1min);
     pool.wait();
     cout << "wait done" << endl;
 }
 
 int main(void)
 {
-    try
-    {
+
         testTerminate();
-    }
-    catch (const exception& e)
-    {
-        cout << e.what() << endl;
-    }
-    system("pause");
+
+    cout << "Press any key to continue...";
+    getchar();
     return 0;
 }

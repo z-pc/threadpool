@@ -24,6 +24,7 @@
 #include "noncopyable.h"
 #include <atomic>
 #include <chrono>
+#include <condition_variable>
 #include <iostream>
 #include <mutex>
 #include <queue>
@@ -118,7 +119,7 @@ public:
      * @param runnable the task to add
      * @return false if the thread pool was exited, otherwise true.
      */
-    virtual void push(std::shared_ptr<IRunnable> runnable) = 0;
+    virtual bool push(std::shared_ptr<IRunnable> runnable) = 0;
 
     /**
      * @brief Signals notifying the thread pool to start executing tasks in the queue.
@@ -190,7 +191,7 @@ public:
     virtual ~ThreadPool();
 
     virtual bool isIdle();
-    virtual void push(std::shared_ptr<IRunnable> runnable);
+    virtual bool push(std::shared_ptr<IRunnable> runnable);
 
     /**
      * @brief Check executable of the thread pool for a new task.
@@ -204,7 +205,7 @@ public:
      * @tparam Args the package type of forwarding arguments.
      * @param args arguments to forward to the constructor of the implement runnable.
      */
-    template <typename _Runnable, class... Args> void emplace(Args&&... args);
+    template <typename _Runnable, class... Args> bool emplace(Args&&... args);
 
     void start();
     void terminate();
@@ -219,10 +220,10 @@ protected:
     void cleanCompleteWorker();
 };
 
-template <typename _Runnable, class... Args> void threadpool::ThreadPool::emplace(Args&&... args)
+template <typename _Runnable, class... Args> bool threadpool::ThreadPool::emplace(Args&&... args)
 {
     auto r = std::make_shared<_Runnable>(std::forward<Args>(args)...);
-    push(r);
+    return push(r);
 }
 
 /**
