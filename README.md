@@ -9,7 +9,10 @@ Required:
 Just copy files in `src/*` to your project to using threadpool
 
 ### Run examples
-`cmake .. -G "Visual Studio 16 2019" -Ax64`
+`mkdir build && cd build`  
+`cmake ..`  
+`cmake --build .`  
+`./thread_pool`  
 
 ## Example  
 Create thread pool  
