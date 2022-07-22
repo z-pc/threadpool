@@ -33,12 +33,7 @@
 #define THREAD_POOl_DEFAULT_POOL_SIZE 2
 
 #ifdef TP_CONSOLE
-extern std::mutex _tpMtCout;
-#define _tpLockPrint(text)                                                                         \
-    {                                                                                              \
-        std::lock_guard lk(_tpMtCout);                                                             \
-        std::cout << ">" << text << std::endl;                                                     \
-    }
+#define _tpLockPrint(textStream) std::cout << ">" << textStream << std::flush << std::endl;
 #else
 #define _tpLockPrint(text)
 #endif

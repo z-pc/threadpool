@@ -25,7 +25,6 @@
 #ifdef TP_CONSOLE
 #include <iostream>
 #include <sstream>
-std::mutex _tpMtCout;
 #endif
 
 using namespace threadpool;
