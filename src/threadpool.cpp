@@ -54,9 +54,9 @@ int Worker::work(IThreadPool& pool, PoolQueue& queue)
 
             pool.m_tpCV.wait(
                 lk, [&]()
-                { return (pool.m_tpTerminal.load(std::memory_order_relaxed) || !queue.empty()); });
+                { return (pool.m_tpTerminal.load() || !queue.empty()); });
 
-            if (pool.m_tpTerminal.load(std::memory_order_relaxed)) break;
+            if (pool.m_tpTerminal.load()) break;
             backElm = queue.front();
             queue.pop();
             lk.unlock();
@@ -91,11 +91,11 @@ int Worker::workFor(const std::chrono::nanoseconds& aliveTime, IThreadPool& pool
 
             pool.m_tpCV.wait_for(lk, aliveTime,
                                  [&]() {
-                                     return pool.m_tpTerminal.load(std::memory_order_relaxed) ||
+                                     return pool.m_tpTerminal.load() ||
                                             !queue.empty();
                                  });
 
-            if (pool.m_tpTerminal.load(std::memory_order_relaxed) || queue.empty()) break;
+            if (pool.m_tpTerminal.load() || queue.empty()) break;
 
             backElm = queue.front();
             queue.pop();
@@ -123,7 +123,7 @@ void Worker::waitForStartSignal(IThreadPool& pool)
     status.store(WAITTING_START);
     _tpLockPrint("worker " << this->id << " is waiting for start signal");
     pool.m_tpCV.wait(lk, [&]()
-                     { return !pool.m_tpWaitForSignalStart.load(std::memory_order_relaxed); });
+                     { return !pool.m_tpWaitForSignalStart.load(); });
     lk.unlock();
 }
 
@@ -143,7 +143,7 @@ threadpool::ThreadPool::~ThreadPool() { terminate(); }
 bool ThreadPool::isIdle()
 {
     for (auto& w : m_workers)
-        if (w->status.load(std::memory_order_relaxed) != threadpool::WAITTING_TASK) return false;
+        if (w->status.load() != threadpool::WAITTING_TASK) return false;
 
     return true;
 }
@@ -159,7 +159,7 @@ bool threadpool::ThreadPool::push(std::shared_ptr<IRunnable> runnable)
             bool create = true;
             for (auto& w : m_workers)
             {
-                if (w->status.load(std::memory_order_relaxed) == threadpool::WAITTING_TASK)
+                if (w->status.load() == threadpool::WAITTING_TASK)
                 {
                     create = false;
                     break;
@@ -210,7 +210,7 @@ void threadpool::ThreadPool::terminate()
     m_tpCV.notify_all();
 }
 
-bool ThreadPool::executable() { return !m_tpTerminal.load(memory_order::memory_order_relaxed); }
+bool ThreadPool::executable() { return !m_tpTerminal.load(); }
 
 void threadpool::ThreadPool::createWorker(std::uint32_t count)
 {
@@ -245,7 +245,7 @@ void ThreadPool::cleanCompleteWorker()
         auto& worker = *workerIt;
         auto& thread = *threadIt;
 
-        if (worker->status.load(memory_order::memory_order_relaxed) == WorkerStatus::END)
+        if (worker->status.load() == WorkerStatus::END)
         {
             if (thread->joinable())
             {

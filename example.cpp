@@ -66,6 +66,7 @@ void testTerminate()
     ThreadPool pool = ThreadPool(1, 3, 20s);
 
     tp_push_taks("#t1");
+    tp_sleep_for(1s);
     tp_push_taks("#t2");
 
     tp_sleep_for(2s);
@@ -82,7 +83,7 @@ void testTerminate()
 int main(void)
 {
 
-        testTerminate();
+    testTerminate();
 
     cout << "Press any key to continue...";
     getchar();
