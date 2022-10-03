@@ -42,21 +42,21 @@ void testThreadPoolFixed()
 {
     ThreadPoolFixed pool = ThreadPoolFixed(2);
 
-    pool.emplace<RunnableExample>("#test emplace#");
-
-    tp_sleep_for(1s);
     tp_push_taks("#t1");
+    tp_sleep_for(1s);
     tp_push_taks("#t2");
+    tp_sleep_for(1s);
     tp_push_taks("#t3");
+    tp_sleep_for(1s);
     tp_push_taks("#t4");
+    tp_sleep_for(1s);
     tp_push_taks("#t5");
-    tp_sleep_for(5s);
+    tp_sleep_for(1s);
     pool.start();
-   
+
     tp_sleep_for(5s);
     _tpLockPrint("terminate");
     pool.terminate();
-
     pool.wait();
     cout << "Wait done" << endl;
 }
@@ -83,7 +83,7 @@ void testTerminate()
 int main(void)
 {
 
-    testTerminate();
+    testThreadPoolFixed();
 
     cout << "Press any key to continue...";
     getchar();

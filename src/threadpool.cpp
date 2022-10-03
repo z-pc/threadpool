@@ -25,6 +25,7 @@
 #ifdef TP_CONSOLE
 #include <iostream>
 #include <sstream>
+std::mutex _tpMtCout;
 #endif
 
 using namespace threadpool;
@@ -47,13 +48,11 @@ int Worker::work(IThreadPool& pool, PoolQueue& queue)
     do
     {
         {
-            std::unique_lock lk{pool.m_mtQueue};
+            std::unique_lock<std::mutex> lk{pool.m_mtQueue};
             status.store(WAITTING_TASK);
             _tpLockPrint("worker " << this->id << " is waiting for new task");
 
-            pool.m_tpCV.wait(
-                lk, [&]()
-                { return (pool.m_tpTerminal.load() || !queue.empty()); });
+            pool.m_tpCV.wait(lk, [&]() { return (pool.m_tpTerminal.load() || !queue.empty()); });
 
             if (pool.m_tpTerminal.load()) break;
             backElm = queue.front();
@@ -84,15 +83,12 @@ int Worker::workFor(const std::chrono::nanoseconds& aliveTime, IThreadPool& pool
     do
     {
         {
-            std::unique_lock lk{pool.m_mtQueue};
+            std::unique_lock<std::mutex> lk{pool.m_mtQueue};
             status.store(WAITTING_TASK);
             _tpLockPrint("s-worker " << this->id << " is waiting for new task");
 
             pool.m_tpCV.wait_for(lk, aliveTime,
-                                 [&]() {
-                                     return pool.m_tpTerminal.load() ||
-                                            !queue.empty();
-                                 });
+                                 [&]() { return pool.m_tpTerminal.load() || !queue.empty(); });
 
             if (pool.m_tpTerminal.load() || queue.empty()) break;
 
@@ -118,11 +114,10 @@ int Worker::workFor(const std::chrono::nanoseconds& aliveTime, IThreadPool& pool
 
 void Worker::waitForStartSignal(IThreadPool& pool)
 {
-    std::unique_lock lk{pool.m_mtQueue};
+    std::unique_lock<std::mutex> lk{pool.m_mtQueue};
     status.store(WAITTING_START);
     _tpLockPrint("worker " << this->id << " is waiting for start signal");
-    pool.m_tpCV.wait(lk, [&]()
-                     { return !pool.m_tpWaitForSignalStart.load(); });
+    pool.m_tpCV.wait(lk, [&]() { return !pool.m_tpWaitForSignalStart.load(); });
     lk.unlock();
 }
 
@@ -176,7 +171,7 @@ bool threadpool::ThreadPool::push(std::shared_ptr<IRunnable> runnable)
         }
 
         {
-            std::lock_guard lk{m_mtQueue};
+            std::lock_guard<std::mutex> lk{m_mtQueue};
             m_taskQueue.push(runnable);
             m_tpCV.notify_one();
         }
@@ -188,6 +183,7 @@ bool threadpool::ThreadPool::push(std::shared_ptr<IRunnable> runnable)
 void threadpool::ThreadPool::start()
 {
     m_tpWaitForSignalStart.store(false);
+    m_tpTerminal.store(false);
     m_tpCV.notify_all();
 }
 
@@ -273,11 +269,8 @@ void ThreadPoolFixed::createWorker(std::uint32_t count) { createSeasonalWorker(c
 
 bool ThreadPoolFixed::executable()
 {
-    if (ThreadPool::executable() == false)
-        return false;
-    else
-    {
-        cleanCompleteWorker();
-        return m_workers.size() > 0;
-    }
+    if (m_tpTerminal.load() == true) return false;
+    if (m_tpWaitForSignalStart.load() == true) return true;
+    cleanCompleteWorker();
+    return m_workers.size() > 0;
 }
