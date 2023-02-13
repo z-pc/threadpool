@@ -162,10 +162,10 @@ protected:
     std::vector<std::unique_ptr<std::thread>> m_threads;
     std::vector<std::unique_ptr<threadpool::Worker>> m_workers;
 
-    std::mutex m_mtQueue;
-    std::condition_variable m_tpCV;
-    std::atomic_bool m_tpTerminal = false;
-    std::atomic_bool m_tpWaitForSignalStart = false;
+    std::mutex m_queueLocker;
+    std::condition_variable m_cv;
+    std::atomic_bool m_terminalSignal = false;
+    std::atomic_bool m_waitForSignalStart = false;
 };
 
 /**
