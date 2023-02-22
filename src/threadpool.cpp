@@ -54,7 +54,11 @@ int Worker::work(IThreadPool& pool, PoolQueue& queue)
 
             pool.m_cv.wait(lk, [&]() { return (pool.m_terminalSignal.load() || !queue.empty()); });
 
-            if (pool.m_terminalSignal.load()) break;
+            if (pool.m_terminalSignal.load())
+            {
+                lk.unlock();
+                break;
+            }
             frontElm = queue.front();
             queue.pop();
             lk.unlock();
@@ -88,7 +92,7 @@ int Worker::workFor(const std::chrono::nanoseconds& aliveTime, IThreadPool& pool
             _tpLockPrint("s-worker " << this->id << " is waiting for new task");
 
             pool.m_cv.wait_for(lk, aliveTime,
-                                 [&]() { return pool.m_terminalSignal.load() || !queue.empty(); });
+                               [&]() { return pool.m_terminalSignal.load() || !queue.empty(); });
 
             if (pool.m_terminalSignal.load() || queue.empty()) break;
 
@@ -190,7 +194,7 @@ void threadpool::ThreadPool::start()
 void threadpool::ThreadPool::wait()
 {
     for (auto& th : m_threads)
-        if (th->joinable()) th->join();
+        if (th && th->joinable()) th->join();
 }
 
 void ThreadPool::detach()
@@ -271,6 +275,6 @@ bool ThreadPoolFixed::executable()
 {
     if (m_terminalSignal.load() == true) return false;
     if (m_waitForSignalStart.load() == true) return true;
-    cleanCompleteWorker();
+    // cleanCompleteWorker();
     return m_workers.size() > 0;
 }
