@@ -9,7 +9,7 @@
 #ifndef BOOST_NONCOPYABLE_HPP_INCLUDED
 #define BOOST_NONCOPYABLE_HPP_INCLUDED
 
-namespace boost
+namespace threadpool
 {
 
 //  Private copy constructor and copy assignment ensure classes derived from

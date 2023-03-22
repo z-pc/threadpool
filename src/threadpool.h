@@ -95,7 +95,7 @@ protected:
 /**
  * @brief The interface of thread pool.
  */
-class IThreadPool : public boost::noncopyable_::noncopyable
+class IThreadPool : public threadpool::noncopyable_::noncopyable
 {
     friend Worker;
 
