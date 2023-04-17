@@ -14,7 +14,6 @@ endif()
 
 add_executable(thread_pool 
      example.cpp 
-     RunnableExample.h
      src/noncopyable.h
      src/threadpool.h
      src/threadpool.cpp)

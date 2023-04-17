@@ -57,7 +57,7 @@ enum WorkerStatus
     END
 };
 
-class IThreadPool;
+class ThreadPool;
 
 /**
  * @brief The interface of a runnable.
@@ -82,90 +82,14 @@ public:
 struct Worker
 {
     Worker(std::uint32_t id);
-    virtual int work(IThreadPool& pool, PoolQueue& queue);
-    virtual int workFor(const std::chrono::nanoseconds& aliveTime, IThreadPool& pool,
+    virtual int work(ThreadPool& pool, PoolQueue& queue);
+    virtual int workFor(const std::chrono::nanoseconds& aliveTime, ThreadPool& pool,
                         PoolQueue& queue);
     std::atomic_int status;
     std::uint32_t id;
 
 protected:
-    void waitForStartSignal(IThreadPool& pool);
-};
-
-/**
- * @brief The interface of thread pool.
- */
-class IThreadPool : public threadpool::noncopyable_::noncopyable
-{
-    friend Worker;
-
-public:
-    IThreadPool()
-    {
-        m_coreSize = 0;
-        m_maxSize = 0;
-        m_aliveTime = 0s;
-    };
-    virtual ~IThreadPool(){};
-
-    /**
-     * @brief Check idle of all workers.
-     * @return true if all workers  waiting for a new task, false if has any-workers doing.
-     */
-    virtual bool isIdle() = 0;
-
-    /**
-     * @brief Add a task to thread pool.
-     * @param runnable the task to add
-     * @return false if the thread pool was exited, otherwise true.
-     */
-    virtual bool push(std::shared_ptr<IRunnable> runnable) = 0;
-
-    /**
-     * @brief Signals notifying the thread pool to start executing tasks in the queue.
-     * This is not necessary if m_tpWaitForSignalStart was passed the true value in constructor.
-     */
-    virtual void start() = 0;
-
-    /**
-     * @brief Wait for workers complete tasks. This is safe to make sure all threads have been
-     * exited.
-     */
-    virtual void wait() = 0;
-
-    /**
-     * @brief Signals notifying the thread pool to stop executing the remaining tasks. The executing
-     * tasks will continue until they actually finish.
-     * This does not actually force workers to stop working immediately.
-     * If want to make sure all executing tasks are finished before doing the next somethings, call
-     * wait() function then.
-     * This is also called implicitly in deconstructor.
-     */
-    virtual void terminate() = 0;
-
-    /**
-     * @brief Check executable of the thread pool for a new task.
-     * @return true if possible, otherwise false.
-     */
-    virtual bool executable() = 0;
-
-    /**
-     * @brief detach all current threads.
-     */
-    virtual void detach() = 0;
-
-protected:
-    std::uint32_t m_coreSize;
-    std::uint32_t m_maxSize;
-    std::chrono::nanoseconds m_aliveTime;
-    PoolQueue m_taskQueue;
-    std::vector<std::unique_ptr<std::thread>> m_threads;
-    std::vector<std::unique_ptr<threadpool::Worker>> m_workers;
-
-    std::mutex m_queueLocker;
-    std::condition_variable m_cv;
-    std::atomic_bool m_terminalSignal = false;
-    std::atomic_bool m_waitForSignalStart = false;
+    void waitForStartSignal(ThreadPool& pool);
 };
 
 /**
@@ -181,23 +105,59 @@ protected:
  * The total number of workers and seasonal-workers will not exceed maxSize.
  *
  */
-class ThreadPool : public IThreadPool
+class ThreadPool : public threadpool::noncopyable_::noncopyable
 {
+    friend Worker;
+
 public:
-    explicit ThreadPool(std::uint32_t coreSize,
-                        std::uint32_t maxSize = std::thread::hardware_concurrency(),
-                        const std::chrono::nanoseconds& aliveTime = 60s,
-                        bool waitForSignalStart = false);
+    ThreadPool(std::uint32_t coreSize, std::uint32_t maxSize = std::thread::hardware_concurrency(),
+               const std::chrono::nanoseconds& aliveTime = 60s, bool waitForSignalStart = false);
+
     virtual ~ThreadPool();
 
+    /**
+     * @brief Check idle of all workers.
+     * @return true if all workers  waiting for a new task, false if has any-workers doing.
+     */
     virtual bool isIdle();
+
+    /**
+     * @brief Add a task to thread pool.
+     * @param runnable the task to add
+     * @return false if the thread pool was exited, otherwise true.
+     */
     virtual bool push(std::shared_ptr<IRunnable> runnable);
 
     /**
+     * @brief Signals notifying the thread pool to start executing tasks in the queue.
+     * This is not necessary if m_tpWaitForSignalStart was passed the true value in constructor.
+     */
+    virtual void start();
+
+    /**
+     * @brief Wait for workers complete tasks. This is safe to make sure all threads have been
+     * exited.
+     */
+    virtual void wait();
+
+    /**
+     * @brief Signals notifying the thread pool to stop executing the remaining tasks. The executing
+     * tasks will continue until they actually finish.
+     * This is also called implicitly in deconstructor.
+     * @param alsoWait is also to call wait().
+     */
+    virtual void terminate(bool alsoWait = true);
+
+    /**
      * @brief Check executable of the thread pool for a new task.
-     * @return false if the terminate signal is given, otherwise true.
+     * @return true if possible, otherwise false.
      */
     virtual bool executable();
+
+    /**
+     * @brief detach all current threads.
+     */
+    virtual void detach();
 
     /**
      * @brief Add a task to thread pool. The task is constructed through forwarding arguments.
@@ -207,17 +167,25 @@ public:
      */
     template <typename _Runnable, class... Args> bool emplace(Args&&... args);
 
-    void start();
-    void terminate();
-    void wait();
-    void detach();
+    void cleanCompleteWorkers();
 
 protected:
     ThreadPool() = default;
     virtual void createWorker(std::uint32_t count);
     virtual void createSeasonalWorker(std::uint32_t count,
                                       const std::chrono::nanoseconds& aliveTime);
-    void cleanCompleteWorker();
+
+    std::uint32_t m_coreSize;
+    std::uint32_t m_maxSize;
+    std::chrono::nanoseconds m_aliveTime;
+    PoolQueue m_taskQueue;
+    std::vector<std::unique_ptr<std::thread>> m_threads;
+    std::vector<std::unique_ptr<threadpool::Worker>> m_workers;
+
+    std::mutex m_queueLocker;
+    std::condition_variable m_cv;
+    std::atomic_bool m_terminalSignal = false;
+    std::atomic_bool m_waitForSignalStart = false;
 };
 
 template <typename _Runnable, class... Args> bool threadpool::ThreadPool::emplace(Args&&... args)

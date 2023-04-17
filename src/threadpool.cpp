@@ -40,7 +40,7 @@ Worker::Worker(std::uint32_t id)
     _tpLockPrint("create worker " << id);
 }
 
-int Worker::work(IThreadPool& pool, PoolQueue& queue)
+int Worker::work(ThreadPool& pool, PoolQueue& queue)
 {
     waitForStartSignal(pool);
 
@@ -79,7 +79,7 @@ int Worker::work(IThreadPool& pool, PoolQueue& queue)
     return 1;
 }
 
-int Worker::workFor(const std::chrono::nanoseconds& aliveTime, IThreadPool& pool, PoolQueue& queue)
+int Worker::workFor(const std::chrono::nanoseconds& aliveTime, ThreadPool& pool, PoolQueue& queue)
 {
     waitForStartSignal(pool);
 
@@ -116,7 +116,7 @@ int Worker::workFor(const std::chrono::nanoseconds& aliveTime, IThreadPool& pool
     return 1;
 }
 
-void Worker::waitForStartSignal(IThreadPool& pool)
+void Worker::waitForStartSignal(ThreadPool& pool)
 {
     std::unique_lock<std::mutex> lk{pool.m_queueLocker};
     status.store(WAITTING_START);
@@ -150,7 +150,7 @@ bool threadpool::ThreadPool::push(std::shared_ptr<IRunnable> runnable)
 {
     if (executable())
     {
-        cleanCompleteWorker();
+        cleanCompleteWorkers();
 
         if (m_workers.size() < m_maxSize)
         {
@@ -193,20 +193,23 @@ void threadpool::ThreadPool::start()
 
 void threadpool::ThreadPool::wait()
 {
+    cleanCompleteWorkers();
     for (auto& th : m_threads)
         if (th && th->joinable()) th->join();
 }
 
 void ThreadPool::detach()
 {
+    cleanCompleteWorkers();
     for (auto& th : m_threads)
         th->detach();
 }
 
-void threadpool::ThreadPool::terminate()
+void threadpool::ThreadPool::terminate(bool alsoWait)
 {
     m_terminalSignal.store(true);
     m_cv.notify_all();
+    if (alsoWait) wait();
 }
 
 bool ThreadPool::executable() { return !m_terminalSignal.load(); }
@@ -234,7 +237,7 @@ void ThreadPool::createSeasonalWorker(std::uint32_t count,
     }
 }
 
-void ThreadPool::cleanCompleteWorker()
+void threadpool::ThreadPool::cleanCompleteWorkers()
 {
     auto workerIt = m_workers.begin();
     auto threadIt = m_threads.begin();
