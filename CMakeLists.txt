@@ -12,8 +12,10 @@ if(TP_CONSOLE)
     add_definitions(-DTP_CONSOLE)
 endif()
 
-add_executable(thread_pool 
-     example.cpp 
-     src/noncopyable.h
-     src/threadpool.h
-     src/threadpool.cpp)
+add_library(threadpool src/threadpool.cpp)
+
+add_executable(run_sample 
+     example.cpp)
+
+target_link_libraries(run_sample
+               threadpool)
