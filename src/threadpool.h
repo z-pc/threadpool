@@ -36,7 +36,7 @@
 extern std::mutex _tpMtCout;
 #define _tpLockPrint(text)                                                                         \
     {                                                                                              \
-        std::lock_guard<std::mutex> lk(_tpMtCout);                                               \
+        std::lock_guard<std::mutex> lk(_tpMtCout);                                                 \
         std::cout << ">" << text << std::endl;                                                     \
     }
 #else
@@ -184,8 +184,8 @@ protected:
 
     std::mutex m_queueLocker;
     std::condition_variable m_cv;
-    std::atomic_bool m_terminalSignal = false;
-    std::atomic_bool m_waitForSignalStart = false;
+    std::atomic_bool m_terminalSignal{false};
+    std::atomic_bool m_waitForSignalStart{false};
 };
 
 template <typename _Runnable, class... Args> bool threadpool::ThreadPool::emplace(Args&&... args)
