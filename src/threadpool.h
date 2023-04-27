@@ -36,7 +36,7 @@
 extern std::mutex _tpMtCout;
 #define _tpLockPrint(text)                                                                         \
     {                                                                                              \
-        std::lock_guard lk(_tpMtCout);                                                             \
+        std::lock_guard<std::mutex> lk(_tpMtCout);                                               \
         std::cout << ">" << text << std::endl;                                                     \
     }
 #else

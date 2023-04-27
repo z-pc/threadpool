@@ -218,10 +218,10 @@ void threadpool::ThreadPool::createWorker(std::uint32_t count)
 {
     for (std::uint32_t i = 0; i < count; i++)
     {
-        m_workers.push_back(std::make_unique<threadpool::Worker>(m_workers.size()));
+        m_workers.push_back(std::unique_ptr<threadpool::Worker>(new Worker(m_workers.size())));
         auto workerRaw = m_workers.back().get();
-        m_threads.push_back(std::make_unique<std::thread>(&Worker::work, workerRaw, std::ref(*this),
-                                                          std::ref(m_taskQueue)));
+        m_threads.push_back(std::unique_ptr<std::thread>(
+            new std::thread(&Worker::work, workerRaw, std::ref(*this), std::ref(m_taskQueue))));
     }
 }
 
@@ -230,10 +230,10 @@ void ThreadPool::createSeasonalWorker(std::uint32_t count,
 {
     for (std::uint32_t i = 0; i < count; i++)
     {
-        m_workers.push_back(std::make_unique<threadpool::Worker>(m_workers.size()));
+        m_workers.push_back(std::unique_ptr<threadpool::Worker>(new Worker(m_workers.size())));
         auto workerRaw = m_workers.back().get();
-        m_threads.push_back(std::make_unique<std::thread>(&Worker::workFor, workerRaw, aliveTime,
-                                                          std::ref(*this), std::ref(m_taskQueue)));
+        m_threads.push_back(std::unique_ptr<std::thread>(new std::thread(
+            &Worker::workFor, workerRaw, aliveTime, std::ref(*this), std::ref(m_taskQueue))));
     }
 }
 
