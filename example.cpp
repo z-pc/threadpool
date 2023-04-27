@@ -46,7 +46,7 @@ public:
 
 void testThreadPool()
 {
-    ThreadPool pool = ThreadPool(1, 3, 20s);
+    ThreadPool pool(1, 3);
 
     tp_sleep_for(1s);
     tp_push_taks("#t1");
@@ -68,7 +68,7 @@ void testThreadPool()
 
 void testThreadPoolFixed()
 {
-    ThreadPoolFixed pool = ThreadPoolFixed(2);
+    ThreadPoolFixed pool(2);
 
     tp_push_taks("#t1");
     tp_sleep_for(1s);
@@ -90,7 +90,7 @@ void testThreadPoolFixed()
 
 void testTerminate()
 {
-    ThreadPool pool = ThreadPool(1, 3, 20s);
+    ThreadPool pool(1, 3, 20s);
 
     tp_push_taks("#t1");
     tp_sleep_for(1s);
@@ -109,8 +109,9 @@ void testTerminate()
 int main(void)
 {
 
-    auto pool = ThreadPool(1, 2);
+    ThreadPool pool(1, 2);
     pool.emplace<RunnableSample>("task-1");
+    tp_sleep_for(1s);
     pool.push(std::make_shared<RunnableSample>("task-2"));
 
     std::this_thread::sleep_for(1s);

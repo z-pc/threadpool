@@ -3,6 +3,7 @@ cmake_minimum_required(VERSION 3.20)
 set(CMAKE_CXX_STANDARD 14)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
+SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -pthread")
 
 project(thread_pool C CXX)
 find_package (Threads)
