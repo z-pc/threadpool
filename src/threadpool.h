@@ -34,16 +34,16 @@
 
 #ifdef TP_CONSOLE
 extern std::mutex _tpMtCout;
-#define _tpLockPrint(text)                                                                         \
-    {                                                                                              \
-        std::lock_guard<std::mutex> lk(_tpMtCout);                                                 \
-        std::cout << ">" << text << std::endl;                                                     \
+#define _tpLockPrint(text)                         \
+    {                                              \
+        std::lock_guard<std::mutex> lk(_tpMtCout); \
+        std::cout << ">" << text << std::endl;     \
     }
 #else
 #define _tpLockPrint(text)
 #endif
 
-namespace threadpool
+namespace athread
 {
 
 using namespace std::literals::chrono_literals;
@@ -58,6 +58,7 @@ enum WorkerStatus
 };
 
 class ThreadPool;
+class Worker;
 
 /**
  * @brief The interface of a runnable.
@@ -65,30 +66,43 @@ class ThreadPool;
 class IRunnable
 {
 
+
+    friend class athread::Worker;
+
 public:
     IRunnable(){};
     virtual ~IRunnable(){};
 
+protected:
     virtual bool run() = 0;
 };
 
-class PoolQueue : public std::queue<std::shared_ptr<IRunnable>>
+class PoolQueue : public std::queue<IRunnable*>
 {
+    friend class ThreadPool;
+
 public:
-    PoolQueue();
     virtual ~PoolQueue(){};
+
+protected:
+    PoolQueue();
 };
 
-struct Worker
+class Worker
 {
+    friend class ThreadPool;
+
+public:
+    virtual ~Worker(){};
+
+protected:
     Worker(std::uint32_t id);
     virtual int work(ThreadPool& pool, PoolQueue& queue);
-    virtual int workFor(const std::chrono::nanoseconds& aliveTime, ThreadPool& pool,
-                        PoolQueue& queue);
+    virtual int workFor(const std::chrono::nanoseconds& aliveTime, ThreadPool& pool, PoolQueue& queue);
+
     std::atomic_int status;
     std::uint32_t id;
 
-protected:
     void waitForStartSignal(ThreadPool& pool);
 };
 
@@ -105,12 +119,12 @@ protected:
  * The total number of workers and seasonal-workers will not exceed maxSize.
  *
  */
-class ThreadPool : public threadpool::noncopyable_::noncopyable
+class ThreadPool : public athread::noncopyable_::noncopyable
 {
     friend Worker;
 
 public:
-    ThreadPool(std::uint32_t coreSize, std::uint32_t maxSize = std::thread::hardware_concurrency(),
+    ThreadPool(std::uint32_t coreSize, int maxSize = std::thread::hardware_concurrency(),
                const std::chrono::nanoseconds& aliveTime = 60s, bool waitForSignalStart = false);
 
     virtual ~ThreadPool();
@@ -126,7 +140,7 @@ public:
      * @param runnable the task to add
      * @return false if the thread pool was exited, otherwise true.
      */
-    virtual bool push(std::shared_ptr<IRunnable> runnable);
+    virtual bool push(IRunnable* runnable);
 
     /**
      * @brief Signals notifying the thread pool to start executing tasks in the queue.
@@ -159,14 +173,6 @@ public:
      */
     virtual void detach();
 
-    /**
-     * @brief Add a task to thread pool. The task is constructed through forwarding arguments.
-     * @tparam _Runnable the implement type of IRunnable.
-     * @tparam Args the package type of forwarding arguments.
-     * @param args arguments to forward to the constructor of the implement runnable.
-     */
-    template <typename _Runnable, class... Args> bool emplace(Args&&... args);
-
     void cleanCompleteWorkers();
 
 protected:
@@ -176,23 +182,17 @@ protected:
                                       const std::chrono::nanoseconds& aliveTime);
 
     std::uint32_t m_coreSize;
-    std::uint32_t m_maxSize;
+    int m_maxSize;
     std::chrono::nanoseconds m_aliveTime;
     PoolQueue m_taskQueue;
     std::vector<std::unique_ptr<std::thread>> m_threads;
-    std::vector<std::unique_ptr<threadpool::Worker>> m_workers;
+    std::vector<std::unique_ptr<athread::Worker>> m_workers;
 
     std::mutex m_queueLocker;
     std::condition_variable m_cv;
     std::atomic_bool m_terminalSignal{false};
     std::atomic_bool m_waitForSignalStart{false};
 };
-
-template <typename _Runnable, class... Args> bool threadpool::ThreadPool::emplace(Args&&... args)
-{
-    auto r = std::make_shared<_Runnable>(std::forward<Args>(args)...);
-    return push(r);
-}
 
 /**
  * @brief ThreadPoolFixed is the same with ThreadPool.
@@ -220,6 +220,6 @@ protected:
     virtual void createWorker(std::uint32_t count);
 };
 
-} // namespace threadpool
+} // namespace athread
 
 #endif

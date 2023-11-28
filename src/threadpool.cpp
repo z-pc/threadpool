@@ -28,10 +28,10 @@
 std::mutex _tpMtCout;
 #endif
 
-using namespace threadpool;
+using namespace athread;
 using namespace std;
 
-threadpool::PoolQueue::PoolQueue() {}
+athread::PoolQueue::PoolQueue() {}
 
 Worker::Worker(std::uint32_t id)
 {
@@ -44,7 +44,7 @@ int Worker::work(ThreadPool& pool, PoolQueue& queue)
 {
     waitForStartSignal(pool);
 
-    std::shared_ptr<threadpool::IRunnable> frontElm = nullptr;
+    athread::IRunnable* frontElm = nullptr;
     do
     {
         {
@@ -52,7 +52,8 @@ int Worker::work(ThreadPool& pool, PoolQueue& queue)
             status.store(WAITTING_TASK);
             _tpLockPrint("worker " << this->id << " is waiting for new task");
 
-            pool.m_cv.wait(lk, [&]() { return (pool.m_terminalSignal.load() || !queue.empty()); });
+            pool.m_cv.wait(lk, [&]()
+                           { return (pool.m_terminalSignal.load() || !queue.empty()); });
 
             if (pool.m_terminalSignal.load())
             {
@@ -69,7 +70,9 @@ int Worker::work(ThreadPool& pool, PoolQueue& queue)
             _tpLockPrint("worker " << this->id << " is getting a task");
             status.store(BUSY);
             frontElm->run();
+            delete frontElm;
         }
+
         frontElm = nullptr;
 
     } while (true);
@@ -83,7 +86,7 @@ int Worker::workFor(const std::chrono::nanoseconds& aliveTime, ThreadPool& pool,
 {
     waitForStartSignal(pool);
 
-    std::shared_ptr<threadpool::IRunnable> frontElm = nullptr;
+    athread::IRunnable* frontElm = nullptr;
     do
     {
         {
@@ -92,7 +95,8 @@ int Worker::workFor(const std::chrono::nanoseconds& aliveTime, ThreadPool& pool,
             _tpLockPrint("s-worker " << this->id << " is waiting for new task");
 
             pool.m_cv.wait_for(lk, aliveTime,
-                               [&]() { return pool.m_terminalSignal.load() || !queue.empty(); });
+                               [&]()
+                               { return pool.m_terminalSignal.load() || !queue.empty(); });
 
             if (pool.m_terminalSignal.load() || queue.empty()) break;
 
@@ -106,6 +110,7 @@ int Worker::workFor(const std::chrono::nanoseconds& aliveTime, ThreadPool& pool,
             _tpLockPrint("s-worker " << this->id << " is getting a task");
             status.store(BUSY);
             frontElm->run();
+            delete frontElm;
         }
         frontElm = nullptr;
 
@@ -121,43 +126,44 @@ void Worker::waitForStartSignal(ThreadPool& pool)
     std::unique_lock<std::mutex> lk{pool.m_queueLocker};
     status.store(WAITTING_START);
     _tpLockPrint("worker " << this->id << " is waiting for start signal");
-    pool.m_cv.wait(lk, [&]() { return !pool.m_waitForSignalStart.load(); });
+    pool.m_cv.wait(lk, [&]()
+                   { return !pool.m_waitForSignalStart.load(); });
     lk.unlock();
 }
 
-ThreadPool::ThreadPool(std::uint32_t poolSize /*= THREAD_POOl_DEFAULT_POOL_SIZE*/,
-                       std::uint32_t poolMaxSize /*= std::thread::hardware_concurrency()*/,
+ThreadPool::ThreadPool(std::uint32_t coreSize /*= THREAD_POOl_DEFAULT_POOL_SIZE*/,
+                       int maxSize /*= std::thread::hardware_concurrency()*/,
                        const std::chrono::nanoseconds& aliveTime /*= 60s*/,
                        bool waitForSignalStart /*= false*/)
 {
-    m_coreSize = poolSize;
-    m_maxSize = poolMaxSize;
+    m_coreSize = coreSize;
+    m_maxSize = maxSize;
     m_aliveTime = aliveTime;
     m_waitForSignalStart.store(waitForSignalStart);
 }
 
-threadpool::ThreadPool::~ThreadPool() { terminate(); }
+athread::ThreadPool::~ThreadPool() { terminate(); }
 
 bool ThreadPool::isIdle()
 {
     for (auto& w : m_workers)
-        if (w->status.load() != threadpool::WAITTING_TASK) return false;
+        if (w->status.load() != athread::WAITTING_TASK) return false;
 
     return true;
 }
 
-bool threadpool::ThreadPool::push(std::shared_ptr<IRunnable> runnable)
+bool athread::ThreadPool::push(IRunnable* runnable)
 {
     if (executable())
     {
         cleanCompleteWorkers();
 
-        if (m_workers.size() < m_maxSize)
+        if (m_workers.size() < m_maxSize || m_maxSize < 0)
         {
             bool create = true;
             for (auto& w : m_workers)
             {
-                if (w->status.load() == threadpool::WAITTING_TASK)
+                if (w->status.load() == athread::WAITTING_TASK)
                 {
                     create = false;
                     break;
@@ -184,14 +190,14 @@ bool threadpool::ThreadPool::push(std::shared_ptr<IRunnable> runnable)
     return false;
 }
 
-void threadpool::ThreadPool::start()
+void athread::ThreadPool::start()
 {
     m_waitForSignalStart.store(false);
     m_terminalSignal.store(false);
     m_cv.notify_all();
 }
 
-void threadpool::ThreadPool::wait()
+void athread::ThreadPool::wait()
 {
     cleanCompleteWorkers();
     for (auto& th : m_threads)
@@ -205,7 +211,7 @@ void ThreadPool::detach()
         th->detach();
 }
 
-void threadpool::ThreadPool::terminate(bool alsoWait)
+void athread::ThreadPool::terminate(bool alsoWait)
 {
     m_terminalSignal.store(true);
     m_cv.notify_all();
@@ -214,11 +220,11 @@ void threadpool::ThreadPool::terminate(bool alsoWait)
 
 bool ThreadPool::executable() { return !m_terminalSignal.load(); }
 
-void threadpool::ThreadPool::createWorker(std::uint32_t count)
+void athread::ThreadPool::createWorker(std::uint32_t count)
 {
     for (std::uint32_t i = 0; i < count; i++)
     {
-        m_workers.push_back(std::unique_ptr<threadpool::Worker>(new Worker(m_workers.size())));
+        m_workers.push_back(std::unique_ptr<athread::Worker>(new Worker(m_workers.size())));
         auto workerRaw = m_workers.back().get();
         m_threads.push_back(std::unique_ptr<std::thread>(
             new std::thread(&Worker::work, workerRaw, std::ref(*this), std::ref(m_taskQueue))));
@@ -230,14 +236,14 @@ void ThreadPool::createSeasonalWorker(std::uint32_t count,
 {
     for (std::uint32_t i = 0; i < count; i++)
     {
-        m_workers.push_back(std::unique_ptr<threadpool::Worker>(new Worker(m_workers.size())));
+        m_workers.push_back(std::unique_ptr<athread::Worker>(new Worker(m_workers.size())));
         auto workerRaw = m_workers.back().get();
         m_threads.push_back(std::unique_ptr<std::thread>(new std::thread(
             &Worker::workFor, workerRaw, aliveTime, std::ref(*this), std::ref(m_taskQueue))));
     }
 }
 
-void threadpool::ThreadPool::cleanCompleteWorkers()
+void athread::ThreadPool::cleanCompleteWorkers()
 {
     auto workerIt = m_workers.begin();
     auto threadIt = m_threads.begin();
