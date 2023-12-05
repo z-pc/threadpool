@@ -25,6 +25,7 @@
 #include <atomic>
 #include <chrono>
 #include <condition_variable>
+#include <functional>
 #include <iostream>
 #include <mutex>
 #include <queue>
@@ -63,21 +64,19 @@ class Worker;
 /**
  * @brief The interface of a runnable.
  */
-class IRunnable
+class Runnable
 {
-
-
     friend class athread::Worker;
 
 public:
-    IRunnable(){};
-    virtual ~IRunnable(){};
+    Runnable(){};
+    virtual ~Runnable(){};
 
 protected:
-    virtual bool run() = 0;
+    virtual void run() = 0;
 };
 
-class PoolQueue : public std::queue<IRunnable*>
+class PoolQueue : public std::queue<Runnable*>
 {
     friend class ThreadPool;
 
@@ -123,6 +122,17 @@ class ThreadPool : public athread::noncopyable_::noncopyable
 {
     friend Worker;
 
+    class RunnableHolder : public Runnable
+    {
+    public:
+        template <typename Fn>
+        RunnableHolder(Fn&& f);
+
+    protected:
+        virtual void run() { fn(); };
+        std::function<void()> fn;
+    };
+
 public:
     ThreadPool(std::uint32_t coreSize, int maxSize = std::thread::hardware_concurrency(),
                const std::chrono::nanoseconds& aliveTime = 60s, bool waitForSignalStart = false);
@@ -140,7 +150,10 @@ public:
      * @param runnable the task to add
      * @return false if the thread pool was exited, otherwise true.
      */
-    virtual bool push(IRunnable* runnable);
+    virtual bool push(Runnable* runnable);
+
+    template <typename Fn>
+    bool emplace(Fn&& f);
 
     /**
      * @brief Signals notifying the thread pool to start executing tasks in the queue.
@@ -219,6 +232,15 @@ protected:
     ThreadPoolFixed() = default;
     virtual void createWorker(std::uint32_t count);
 };
+
+template <typename Fn>
+inline bool ThreadPool::emplace(Fn&& f)
+{
+    return push(new RunnableHolder(f));
+}
+
+template <typename Fn>
+inline ThreadPool::RunnableHolder::RunnableHolder(Fn&& f) : fn{std::forward<Fn>(f)} {}
 
 } // namespace athread
 

@@ -10,7 +10,7 @@
 using namespace std;
 using namespace athread;
 
-class RunnableSample : public athread::IRunnable
+class RunnableSample : public athread::Runnable
 {
 public:
     RunnableSample(std::string name)
@@ -22,7 +22,7 @@ public:
     };
     ~RunnableSample(){};
 
-    virtual bool run() override
+    virtual void run() override
     {
         using namespace std::chrono_literals;
 
@@ -31,8 +31,6 @@ public:
             _tpLockPrint(m_name << " running " << i);
             std::this_thread::sleep_for(1s);
         }
-
-        return true;
     }
 
     std::string m_name;

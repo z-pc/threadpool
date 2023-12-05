@@ -23,3 +23,8 @@ target_link_libraries(ex_simple
                threadpool)
 target_include_directories(ex_simple PUBLIC src)
 
+add_executable(ex_lambda samples/ex_lambda.cpp)
+
+target_link_libraries(ex_lambda  threadpool)
+target_include_directories(ex_lambda PUBLIC src)
+

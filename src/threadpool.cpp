@@ -44,7 +44,7 @@ int Worker::work(ThreadPool& pool, PoolQueue& queue)
 {
     waitForStartSignal(pool);
 
-    athread::IRunnable* frontElm = nullptr;
+    athread::Runnable* frontElm = nullptr;
     do
     {
         {
@@ -86,7 +86,7 @@ int Worker::workFor(const std::chrono::nanoseconds& aliveTime, ThreadPool& pool,
 {
     waitForStartSignal(pool);
 
-    athread::IRunnable* frontElm = nullptr;
+    athread::Runnable* frontElm = nullptr;
     do
     {
         {
@@ -152,7 +152,7 @@ bool ThreadPool::isIdle()
     return true;
 }
 
-bool athread::ThreadPool::push(IRunnable* runnable)
+bool athread::ThreadPool::push(Runnable* runnable)
 {
     if (executable())
     {
