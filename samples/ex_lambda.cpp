@@ -3,8 +3,6 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-
-#include <crtdbg.h>
 #include <stdlib.h>
 
 using namespace std;

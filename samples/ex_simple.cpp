@@ -4,7 +4,6 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include <crtdbg.h>
 #include <stdlib.h>
 
 using namespace std;
@@ -121,6 +120,5 @@ int main(void)
     }
     //cout << "Press any key to continue...";
     //getchar();
-    _CrtDumpMemoryLeaks();
     return 0;
 }
