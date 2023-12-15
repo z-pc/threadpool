@@ -20,13 +20,11 @@ Create thread pool
 
 Pusk a task for thread pool
 ```
-pool.emplace<RunnableExample>("#run 1000 miles#");
-pool.emplace<RunnableExample>("#cooking breakfast#");
-pool.emplace<RunnableExample>("#feed the cat#");
-pool.emplace<RunnableExample>("#take out the trash#");
-pool.emplace<RunnableExample>("#play chess with grandma#");
-pool.emplace<RunnableExample>("#blah blah blah#");
-pool.emplace<RunnableExample>("#marry...#");
+pool.push<RunnableExample>("#run 1000 miles#");
+pool.push<RunnableExample>("#cooking breakfast#");
+pool.emplace([](){
+// do somethings 
+});
 ```
 
 Notify stop thread pool  
