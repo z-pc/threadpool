@@ -12,7 +12,7 @@ int main(void)
 {
     ThreadPoolFixed pool(2);
     int a=4;
-    pool.emplace([=]()
+    pool.push([=]( )
                  { cout << "lambda function: " << a << endl; });
     pool.start();
     pool.wait();

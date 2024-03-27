@@ -47,8 +47,6 @@ extern std::mutex _tpMtCout;
 namespace athread
 {
 
-using namespace std::literals::chrono_literals;
-
 enum WorkerStatus
 {
     NOAVAILABLE,
@@ -97,7 +95,7 @@ public:
 protected:
     Worker(std::uint32_t id);
     virtual int work(ThreadPool& pool, PoolQueue& queue);
-    virtual int workFor(const std::chrono::nanoseconds& aliveTime, ThreadPool& pool, PoolQueue& queue);
+    virtual int workFor(const std::chrono::milliseconds& aliveTime, ThreadPool& pool, PoolQueue& queue);
 
     std::atomic_int status;
     std::uint32_t id;
@@ -120,13 +118,13 @@ protected:
  */
 class ThreadPool : public athread::noncopyable_::noncopyable
 {
+
     friend Worker;
 
     class RunnableHolder : public Runnable
     {
     public:
-        template <typename Fn>
-        RunnableHolder(Fn&& f);
+        RunnableHolder(std::function<void()> f);
 
     protected:
         virtual void run() { fn(); };
@@ -135,7 +133,7 @@ class ThreadPool : public athread::noncopyable_::noncopyable
 
 public:
     ThreadPool(std::uint32_t coreSize, int maxSize = std::thread::hardware_concurrency(),
-               const std::chrono::nanoseconds& aliveTime = 60s, bool waitForSignalStart = false);
+               const std::chrono::milliseconds& aliveTime = std::chrono::seconds(60), bool waitForSignalStart = false);
 
     virtual ~ThreadPool();
 
@@ -152,8 +150,16 @@ public:
      */
     virtual bool push(Runnable* runnable);
 
-    template <typename Fn>
-    bool emplace(Fn&& f);
+    virtual bool push(const std::function<void()>& f);
+
+    /**
+     * @brief Add a task to thread pool. The task is constructed through forwarding arguments.
+     * @tparam _Runnable the implement type of IRunnable.
+     * @tparam Args the package type of forwarding arguments.
+     * @param args arguments to forward to the constructor of the implement runnable.
+     */
+    template <typename _Runnable, class... Args>
+    bool emplace(Args&&... args);
 
     /**
      * @brief Signals notifying the thread pool to start executing tasks in the queue.
@@ -192,11 +198,11 @@ protected:
     ThreadPool() = default;
     virtual void createWorker(std::uint32_t count);
     virtual void createSeasonalWorker(std::uint32_t count,
-                                      const std::chrono::nanoseconds& aliveTime);
+                                      const std::chrono::milliseconds& aliveTime);
 
     std::uint32_t m_coreSize;
     int m_maxSize;
-    std::chrono::nanoseconds m_aliveTime;
+    std::chrono::milliseconds m_aliveTime;
     PoolQueue m_taskQueue;
     std::vector<std::unique_ptr<std::thread>> m_threads;
     std::vector<std::unique_ptr<athread::Worker>> m_workers;
@@ -233,14 +239,11 @@ protected:
     virtual void createWorker(std::uint32_t count);
 };
 
-template <typename Fn>
-inline bool ThreadPool::emplace(Fn&& f)
+template <typename _Runnable, class... Args>
+bool ThreadPool::emplace(Args&&... args)
 {
-    return push(new RunnableHolder(f));
+    return push(new _Runnable(std::forward<Args>(args)...));
 }
-
-template <typename Fn>
-inline ThreadPool::RunnableHolder::RunnableHolder(Fn&& f) : fn{std::forward<Fn>(f)} {}
 
 } // namespace athread
 
