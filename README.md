@@ -3,7 +3,8 @@
 The implement for thread pool. This is help for manage threads, tasks so easy and safely.  
 Required:
 - C++ 14 is least
-- CMake: minimum 3.20 to run examples.  
+- CMake: minimum 3.20 to run examples.
+- Tested on: Windows, Fedora
 
 ### Add to your project:  
 Just copy files in `src/*` to your project to using threadpool
