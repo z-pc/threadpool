@@ -1,3 +1,5 @@
+> **⚠️ This library is no longer maintained. Please use the new and improved thread pool library [athread](https://github.com/z-pc/athread) for more features and better support.**
+
 # Thread Pool
 
 The implement for thread pool. This is help for manage threads, tasks so easy and safely.  
