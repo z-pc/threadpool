@@ -3,8 +3,6 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-
-#include <crtdbg.h>
 #include <stdlib.h>
 
 using namespace std;
@@ -14,7 +12,7 @@ int main(void)
 {
     ThreadPoolFixed pool(2);
     int a=4;
-    pool.emplace([=]()
+    pool.push([=]( )
                  { cout << "lambda function: " << a << endl; });
     pool.start();
     pool.wait();

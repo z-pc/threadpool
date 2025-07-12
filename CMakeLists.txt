@@ -16,15 +16,16 @@ if(TP_CONSOLE)
 endif()
 
 add_library(threadpool src/threadpool.cpp)
+target_include_directories(threadpool PUBLIC src)
 
-add_executable(ex_simple samples/ex_simple.cpp)
+list(APPEND ATHREAD_SAMPLES
+  ex_auto_shutdown 
+  ex_lambda
+  ex_simple
+)
 
-target_link_libraries(ex_simple
-               threadpool)
-target_include_directories(ex_simple PUBLIC src)
-
-add_executable(ex_lambda samples/ex_lambda.cpp)
-
-target_link_libraries(ex_lambda  threadpool)
-target_include_directories(ex_lambda PUBLIC src)
+foreach(sample IN LISTS ATHREAD_SAMPLES)
+  add_executable(${sample} samples/${sample}.cpp)
+  target_link_libraries(${sample} threadpool)
+endforeach()
 

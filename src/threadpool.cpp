@@ -82,7 +82,7 @@ int Worker::work(ThreadPool& pool, PoolQueue& queue)
     return 1;
 }
 
-int Worker::workFor(const std::chrono::nanoseconds& aliveTime, ThreadPool& pool, PoolQueue& queue)
+int Worker::workFor(const std::chrono::milliseconds& aliveTime, ThreadPool& pool, PoolQueue& queue)
 {
     waitForStartSignal(pool);
 
@@ -133,7 +133,7 @@ void Worker::waitForStartSignal(ThreadPool& pool)
 
 ThreadPool::ThreadPool(std::uint32_t coreSize /*= THREAD_POOl_DEFAULT_POOL_SIZE*/,
                        int maxSize /*= std::thread::hardware_concurrency()*/,
-                       const std::chrono::nanoseconds& aliveTime /*= 60s*/,
+                       const std::chrono::milliseconds& aliveTime /*= 60s*/,
                        bool waitForSignalStart /*= false*/)
 {
     m_coreSize = coreSize;
@@ -190,6 +190,11 @@ bool athread::ThreadPool::push(Runnable* runnable)
     return false;
 }
 
+bool ThreadPool::push(const std::function<void()>& f)
+{
+    return push(new RunnableHolder(f));
+}
+
 void athread::ThreadPool::start()
 {
     m_waitForSignalStart.store(false);
@@ -232,7 +237,7 @@ void athread::ThreadPool::createWorker(std::uint32_t count)
 }
 
 void ThreadPool::createSeasonalWorker(std::uint32_t count,
-                                      const std::chrono::nanoseconds& aliveTime)
+                                      const std::chrono::milliseconds& aliveTime)
 {
     for (std::uint32_t i = 0; i < count; i++)
     {
@@ -286,4 +291,8 @@ bool ThreadPoolFixed::executable()
     if (m_waitForSignalStart.load() == true) return true;
     // cleanCompleteWorker();
     return m_workers.size() > 0;
+}
+
+ThreadPool::RunnableHolder::RunnableHolder(std::function<void()> f) : fn{f}
+{
 }

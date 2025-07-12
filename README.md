@@ -5,7 +5,8 @@
 The implement for thread pool. This is help for manage threads, tasks so easy and safely.  
 Required:
 - C++ 14 is least
-- CMake: minimum 3.20 to run examples.  
+- CMake: minimum 3.20 to run examples.
+- Tested on: Windows, Fedora
 
 ### Add to your project:  
 Just copy files in `src/*` to your project to using threadpool
@@ -22,13 +23,11 @@ Create thread pool
 
 Pusk a task for thread pool
 ```
-pool.emplace<RunnableExample>("#run 1000 miles#");
-pool.emplace<RunnableExample>("#cooking breakfast#");
-pool.emplace<RunnableExample>("#feed the cat#");
-pool.emplace<RunnableExample>("#take out the trash#");
-pool.emplace<RunnableExample>("#play chess with grandma#");
-pool.emplace<RunnableExample>("#blah blah blah#");
-pool.emplace<RunnableExample>("#marry...#");
+pool.push<RunnableExample>("#run 1000 miles#");
+pool.push<RunnableExample>("#cooking breakfast#");
+pool.emplace([](){
+// do somethings 
+});
 ```
 
 Notify stop thread pool  
